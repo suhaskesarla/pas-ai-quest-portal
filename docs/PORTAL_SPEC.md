@@ -381,4 +381,10 @@ A challenge has `category`, `name`, `description`, `dueAt` (now independent of c
 
 ## 20. What's real vs. simulated in the current prototype
 
-The prototype (`pas-quest-portal.jsx`) was built before this review. It correctly demonstrates the UX/visual direction (§18) and the general shape of cycle-scoping, submission review, and bonus awards — but its internal data model predates the corrections in §2–§13 above and should not be read as implementing them. Specifically still simplified in the prototype as of this review: single-beneficiary submissions (§7), flat Bonus XP bucket rather than a typed ledger (§4), no raid-pass tracking (§5), roster reconstructed from activity rather than a standalone table (§3), single flat `Team` rather than the `CycleTeam`/`TeamPolicy`/`ChallengeParticipation` split (§6), and no `BUSINESS_RULE_PENDING` marker on team leaderboard math (§10). A companion note accompanying this document scopes which of these are being updated in the prototype now versus deferred to the real backend build.
+The prototype (`prototype/pas-quest-portal.jsx`) remains a UX/visual reference rather than an implementation of the production data model.
+
+It has now been updated to visibly demonstrate the main post-review workflow corrections: an explicit mock cycle roster including zero-XP participants; claimant vs beneficiaries on submissions; overlapping open challenges across cycle boundaries; Needs Evidence / Resubmitted review states; configurable manual-award categories; raid-pass information kept separate from XP; and a Team Leaderboard that deliberately shows `BUSINESS_RULE_PENDING` rather than inventing a team-scoring formula.
+
+It intentionally does **not** implement the production persistence and infrastructure model. In particular, it does not implement real `XPEntry` persistence, `SubmissionEvent` persistence, `CycleParticipant`, relational `CycleTeamMember`, `ChallengeParticipationMember`, transactional/idempotent multi-beneficiary writes, Entra authorization, private Blob Storage, historical import/reconciliation, real cycle administration, or Teams integration.
+
+Treat the prototype as the source of truth for approved UX/visual direction only. Treat this specification as authoritative for the production data model and business rules.
