@@ -1,8 +1,10 @@
 using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 using PAS.AIQuestPortal.Api.Authentication;
 using PAS.AIQuestPortal.Api.Configuration;
+using PAS.AIQuestPortal.Api.Data;
 using PAS.AIQuestPortal.Api.Health;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -47,12 +49,19 @@ var storageConnectionString = builder.Configuration["Storage:ConnectionString"]
     ?? throw new InvalidOperationException("Storage:ConnectionString is required.");
 
 builder.Services.AddSingleton(new BlobServiceClient(storageConnectionString));
+builder.Services.AddDbContext<QuestDbContext>(options => options.UseSqlServer(databaseConnectionString));
 builder.Services
     .AddHealthChecks()
     .AddSqlServer(databaseConnectionString, name: "sqlserver", tags: ["ready"])
     .AddCheck<BlobStorageHealthCheck>("blob-storage", tags: ["ready"]);
 
 var app = builder.Build();
+
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var database = scope.ServiceProvider.GetRequiredService<QuestDbContext>();
+    await database.Database.MigrateAsync();
+}
 
 app.UseCors();
 app.UseAuthentication();
