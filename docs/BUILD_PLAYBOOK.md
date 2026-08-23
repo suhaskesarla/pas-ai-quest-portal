@@ -20,7 +20,7 @@ This is the corrected playbook, written against `PORTAL_SPEC.md` (frozen) and `T
 
 - Never ask Codex for more than one phase in a single session.
 - **You** review the diff, run it, confirm it actually works, **then** commit. Don't let Codex commit its own unreviewed work as "done."
-- If a session goes sideways, `git reset --hard` to the last good commit and start that step fresh in a new session — don't argue a derailed session back to correctness.
+- If a session goes sideways, first run `git status` and review the diff. Preserve any useful or unrelated work before discarding changes. On a disposable Codex branch/worktree with nothing worth keeping, reset to the last known-good commit and restart the step in a fresh session. Never run `git reset --hard` blindly on `main` or on a working tree containing uncommitted work you may need.
 - Use a branch per phase (`git checkout -b <phase-name>`), merge to `main` only once verified. `main` is always the last known-good state.
 - Tag stable checkpoints (`git tag v0.1-data-model`) after each phase is verified.
 
@@ -56,26 +56,38 @@ Give these to Codex **one at a time**, in order, each pointing at the actual rep
 
 > "Read `docs/PORTAL_SPEC.md` and `docs/TECHNICAL_ARCHITECTURE.md`. Before writing any code, write out explicit acceptance-test scenarios covering: challenge/cycle overlap (a challenge from one cycle still open and approvable in a later cycle), a multi-beneficiary group claim with partial evidence (the Bhoomi scenario in spec §7), XP source types, raid-pass usage, deadline extensions and resubmission, and the `BUSINESS_RULE_PENDING` status of team scoring per `docs/DECISIONS.md`. Don't write implementation code yet — just the test scenarios, for me to review."
 
-**Check-in:** do the test scenarios actually reflect the spec's real examples (Go Pass 3, Bhoomi, the July/August CSVs), or has Codex invented generic placeholder scenarios? Reject anything genericized — the specificity is the point.
+**Check-in:** do the test scenarios actually reflect the spec's real examples (Go Pass 3, Bhoomi, the July/August CSV structure), or has Codex invented generic placeholder scenarios? Preserve the real edge-case behavior, but use synthetic committed fixture data for CI; the real source CSVs stay local-only.
 
-### Step 2 — Data model + migrations
+### Step 2 — Solution scaffolding + local development setup
 
-> "Per `docs/PORTAL_SPEC.md` §2–§10, implement the data model in EF Core against Azure SQL (or local SQL Server for now — see Local development below): `Participant`, `CycleParticipant`, `Cycle`, `Challenge` with independent lifecycle status (§2), `CycleTeam`/`CycleTeamMember`, `ChallengeTeamPolicy`, `ChallengeParticipation`/`ChallengeParticipationMember` (§6), `Submission` with `claimantId`/`beneficiaries[]`/`challengeParticipationId` (§7), `SubmissionEvent` (§2), the append-only `XPEntry` ledger with `entryType`/`sourceType`/`reversesEntryId` (§4), `AwardCategory` (§4), `RaidEntitlement`/`RaidParticipation` (§5, no `xpAwarded` field). Propose the schema first and wait for my confirmation before generating migrations."
+> "Set up the solution and local development environment before implementing the domain model. Use SQL Server LocalDB (or Dockerized SQL Server) in place of Azure SQL, Azurite in place of Blob Storage, and a stub auth handler returning a fake `Quest.Participant`/`Quest.Manager` identity in place of real Entra ID. Use environment-based configuration so swapping to real Azure SQL, real Blob Storage, and real Entra ID at deployment time requires configuration changes rather than business-logic rewrites. Keep credentials out of committed configuration."
+
+**Check-in:** can a new developer clone the repo, follow the documented local setup, start the frontend/API/database/storage emulator, and reach a basic health endpoint without any Azure resources?
+
+### Step 3 — Data model + migrations
+
+> "Per `docs/PORTAL_SPEC.md` §2–§10, implement the data model in EF Core against local SQL Server (production target: Azure SQL): `Participant`, `CycleParticipant`, `Cycle`, `Challenge` with independent lifecycle status (§2), `CycleTeam`/`CycleTeamMember`, `ChallengeTeamPolicy`, `ChallengeParticipation`/`ChallengeParticipationMember` (§6), `Submission` with `claimantId`/`challengeParticipationId` and relational beneficiaries (§7), `SubmissionEvent` (§2), the append-only `XPEntry` ledger with `entryType`/`sourceType`/`reversesEntryId` (§4), `AwardCategory` (§4), `RaidEntitlement`/`RaidParticipation` (§5, no `xpAwarded` field). Propose the schema/ERD first and wait for my confirmation before generating migrations."
+
+**Relational implementation requirement:** do not turn important relationships into opaque JSON merely because the functional spec uses array notation. Model at least:
+- `Challenge` → `ChallengeTask`
+- `Submission` → `SubmissionBeneficiary`
+- `CycleTeam` → `CycleTeamMember`
+- `ChallengeParticipation` → `ChallengeParticipationMember`
+- evidence metadata as relational child records where appropriate
+
+`Submission.taskId` must reference a real `ChallengeTask` row.
 
 **Check-in — this is the highest-stakes review in the whole build:**
 - Does `XPEntry` actually enforce `cycleId` as reporting-cycle attribution, not derived from `awardedAt`? (spec §4's critical rule — read the schema migration itself, don't take a summary on faith.)
 - Is the multi-beneficiary approval idempotency constraint a **filtered** unique index (`WHERE entryType = Grant AND sourceType = TaskApproval`), not a blanket one that would block legitimate reversals?
 - Does cycle/challenge/submission status stay genuinely independent, or did a `cycle.status === "closed"` shortcut sneak into challenge eligibility logic anywhere?
+- Are `ChallengeTask` and `SubmissionBeneficiary` real relations rather than JSON blobs?
 
-### Step 3 — Historical import + reconciliation (before any UI work)
+### Step 4 — Historical import + reconciliation (before any UI work)
 
-> "Using the real July and August score-sheet CSVs as fixtures, write an import script that populates the data model from Step 2, assigning `XPEntry.cycleId` per the rule in spec §4 (a challenge's own cycle, not the calendar date it was approved). Then write a reconciliation test that recomputes every participant's July and August totals from the imported ledger and asserts they match the CSV's `July Total`/`August Total` columns exactly."
+> "Use committed synthetic July/August-shaped CSV fixtures for normal automated tests and CI. Keep the real July and August score-sheet CSVs outside version control in a gitignored `local-source-evidence/` folder. Write the import/reconciliation code so it can also be run locally against those real files. When run against the real source CSVs, populate the data model, assign `XPEntry.cycleId` per spec §4 (the score's reporting cycle, never the calendar date of approval), recompute every participant's July and August totals from the imported ledger, and assert they match the source `July Total` / `August Total` columns exactly."
 
-This is the strongest available proof the data model is correct — the real July CSV's totals already reconcile to zero mismatches against its own XP columns, so if the import+reconciliation test doesn't pass exactly, the data model has a real bug, not a rounding issue to shrug off.
-
-### Step 4 — Local development setup
-
-> "Set up local development so the entire stack runs without any Azure resources: SQL Server LocalDB (or Dockerized SQL Server) in place of Azure SQL, Azurite in place of Blob Storage, and a stub auth handler returning a fake `Quest.Participant`/`Quest.Manager` identity in place of real Entra ID. Use environment-based configuration (`appsettings.Development.json` vs `appsettings.Production.json`) so swapping to real Azure SQL, real Blob Storage, and real Entra ID at deployment time requires only config changes, not code changes."
+This is the strongest available proof the data model is correct. Synthetic fixtures make CI safe and repeatable; the local real-data reconciliation remains the final source-grounded acceptance check without putting colleagues' data into Git history or CI artifacts.
 
 ### Step 5 — Entra authentication + server-side authorization
 
@@ -87,11 +99,11 @@ This is the strongest available proof the data model is correct — the real Jul
 
 Rebuild the screens using `prototype/pas-quest-portal.jsx` as the UX/visual reference (see its own README for what's real vs. simulated in it) and spec §16 for the full screen list. Do **Submit → Review → Score → Correction** completely, end-to-end, before touching Analytics or other secondary views. One screen or workflow per session — stop and review after each.
 
-> "Using `prototype/pas-quest-portal.jsx` as the visual/UX reference and `docs/PORTAL_SPEC.md` §16 for the full screen list, rebuild [screen name] against the real API and auth from Steps 2–5. Keep the visual design system from spec §13 (or the equivalent section reference) — it's already approved, don't redesign it."
+> "Using `prototype/pas-quest-portal.jsx` as the visual/UX reference and `docs/PORTAL_SPEC.md` §16 for the full screen list, rebuild [screen name] against the real API and auth from Steps 2–5. Keep the visual design system from the **Visual Design System** section of `docs/PORTAL_SPEC.md` (currently §19) — it's already approved; don't redesign it."
 
 ### Step 7 — Secure file storage
 
-> "Replace any local file handling with uploads to Azure Blob Storage (Azurite locally), per spec §13: private blob references only, never permanent public URLs. Issue access via short-lived user-delegation SAS. Add file size limits, MIME/type validation, and a retention policy for rejected submissions' files."
+> "Replace any local file handling with uploads to Azure Blob Storage (Azurite locally), per spec §13: private blob references only, never permanent public URLs. Issue access via short-lived user-delegation SAS. Add file size limits and MIME/type validation. Check `docs/DECISIONS.md` for `POLICY_PENDING — Evidence retention`; do not invent or hardcode a retention period. Keep retention configurable and do not enable destructive automatic deletion until that policy is resolved."
 
 ### Step 8 — CI + deployment to non-production
 
@@ -103,11 +115,11 @@ Not a Codex step — pause and pilot with Preety here, using real edge cases, no
 
 ### Step 10 — Teams outbound sync (Phase 2)
 
-> "Per spec §17, build outbound Teams sync: publishing a challenge posts a formatted announcement, a submission approval posts a confirmation reply. Propose Teams SDK vs. Microsoft 365 Agents SDK with justification — use exactly one, never both, and never the archived Bot Framework SDK. Design outbound posting as proactive messaging (app installed in the target team, conversation reference persisted up front), not a naive app-only Graph token POST. Publishing a challenge must be a database transaction first; the Teams notification is enqueued separately with `teamsPublishStatus: Pending | Sent | Failed` and retry/idempotency — a Teams outage must never make the challenge record disappear."
+> "Per spec §18, build outbound Teams sync: publishing a challenge posts a formatted announcement, a submission approval posts a confirmation reply. Propose Teams SDK vs. Microsoft 365 Agents SDK with justification — use exactly one, never both, and never the archived Bot Framework SDK. Design outbound posting as proactive messaging (app installed in the target team, conversation reference persisted up front), not a naive app-only Graph token POST. Publishing a challenge must be a database transaction first; the Teams notification is enqueued separately with `teamsPublishStatus: Pending | Sent | Failed` and retry/idempotency — a Teams outage must never make the challenge record disappear."
 
 ### Step 11 — Teams inbound capture (only after 9 and 10 are proven and stable)
 
-> "Per spec §17 Phase 3, build inbound capture using a structured trigger (bot invocation or @mention with explicit challenge/task tags) — not passive free-text channel monitoring. Have the bot post a confirmation back rather than silently trusting its own parse."
+> "Per spec §18 Phase 3, build inbound capture using a structured trigger (bot invocation or @mention with explicit challenge/task tags) — not passive free-text channel monitoring. Have the bot post a confirmation back rather than silently trusting its own parse."
 
 ---
 
@@ -130,5 +142,5 @@ git commit -m "<what actually works now>"
 git checkout main
 git merge <phase-name>
 git tag v0.<n>-<phase-name>
-git push --tags
+git push origin main --follow-tags
 ```

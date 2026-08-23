@@ -222,6 +222,8 @@ Submission
   reviewerComment?
 ```
 
+**Relational implementation note for Azure SQL / EF Core:** the array notation above is functional shorthand, not an instruction to serialize important relationships as opaque JSON. Model `Challenge → ChallengeTask`, `Submission → SubmissionBeneficiary`, `ChallengeParticipation → ChallengeParticipationMember`, and `CycleTeam → CycleTeamMember` as relational entities. `Submission.taskId` references a real `ChallengeTask` row. Evidence metadata should also use child records where appropriate so it remains queryable and auditable.
+
 **Why `challengeParticipationId` and `beneficiaries[]` are kept separate rather than one implying the other:** the Bhoomi scenario shows a whole-group claim can exist *before* all individual evidence has arrived — Preety has to ask for the remaining proof after the claim is already made. "Who worked together" and "who's confirmed to receive XP right now" are not always the same set at the same moment; don't infer beneficiaries blindly from team/participation membership.
 
 **A multi-beneficiary submission has a single, all-or-nothing approval outcome — decided explicitly, not left for a coding agent to guess.** If Bhoomi claims for herself and two teammates and only her own evidence is solid so far, the submission stays `NeedsEvidence` for the whole group; it is not partially approved for the beneficiaries who happen to have proof in first. This matches Preety's actual observed pattern in the chat — she waits for the remaining artifact, then awards together, rather than scoring people one at a time as their proof trickles in. `beneficiaries[]` therefore does not need a per-beneficiary status field; one `Submission.status` covers the whole group's outcome.
@@ -252,7 +254,7 @@ A submission carries zero or more `attachments[]`, zero or more `links[]`, and a
 
 ## 10. Team scoring: one genuinely open business-policy question (formerly #13)
 
-**This is the only item from the full review that remains unresolved — everything else above is a settled architectural correction, not a pending decision.**
+**This is the only unresolved PAS AI Quest business/scoring rule from the full review — everything else above is a settled architectural correction. A separate operational policy on evidence retention is still pending organisational confirmation; see §13 and `DECISIONS.md`.**
 
 The source material establishes that individual XP exists and that group/team submissions exist. It does **not** establish a team-scoring formula, and v1 quietly invented one (sum an approved submission's XP into `submission.team` once). There is no evidence to confirm or deny that formula.
 
@@ -292,7 +294,9 @@ The source material establishes that individual XP exists and that group/team su
 
 ## 13. File storage: private references, not permanent public URLs
 
-**The correction:** don't persist a permanent, publicly-accessible blob URL on a submission record — a leaked link would let anyone view someone's evidence with no authentication, quietly undermining the privacy boundary already designed into My Activity (§16). Persist a private reference (`storageAccount/container/blobKey`) and issue time-limited, authorized access on demand — a **user-delegation SAS**, not an account-key SAS, per current Azure guidance. Also required and previously unspecified: file size limits, MIME/type validation, a malware-scanning approach, a retention/deletion policy, and an explicit decision on whether rejected submissions' files are retained or purged.
+**The correction:** don't persist a permanent, publicly-accessible blob URL on a submission record — a leaked link would let anyone view someone's evidence with no authentication, quietly undermining the privacy boundary already designed into My Activity (§17). Persist a private reference (`storageAccount/container/blobKey`) and issue time-limited, authorized access on demand — a **user-delegation SAS**, not an account-key SAS, per current Azure guidance. Also required and previously unspecified: file size limits, MIME/type validation, a malware-scanning approach, and a retention/deletion policy.
+
+**`POLICY_PENDING` — evidence retention:** the application must not invent or hardcode how long approved/rejected evidence is retained. The retention period, whether rejected evidence is automatically purged, and any CPA Australia records-management requirements must be confirmed and recorded in `DECISIONS.md`. Until then, make retention configurable and do not implement destructive automatic deletion.
 
 ---
 
@@ -313,7 +317,7 @@ Observability   Application Insights
 Secrets         Managed Identity / Azure Key Vault where required
 Infrastructure  Bicep
 CI/CD           GitHub Actions
-Teams           Deliberately deferred to Phase 2 (§17) — not an open fork
+Teams           Deliberately deferred to Phase 2 (§18) — not an open fork
                 now. Codex must propose Teams SDK vs. Microsoft 365 Agents
                 SDK with justification when Phase 2 starts, and use exactly
                 one, never both. The archived Bot Framework SDK is excluded
@@ -328,7 +332,7 @@ These are reasonable, defensible defaults for this org's environment (already Mi
 
 ## 15. Suggested build sequence (updated)
 
-1. **Freeze requirements + acceptance tests before code.** Add the July/August CSVs as test fixtures. Write explicit rules for challenge/cycle overlap, group claims, XP source types, raid-pass usage, deadlines, and team scoring status (`BUSINESS_RULE_PENDING` for §10). Keep a `DECISIONS.md` — an agent should not be resolving an open domain question itself.
+1. **Freeze requirements + acceptance tests before code.** Commit synthetic July/August-shaped CSV fixtures for automated tests and CI; keep the real July/August source CSVs outside version control in a gitignored local-source-evidence folder. Write explicit rules for challenge/cycle overlap, group claims, XP source types, raid-pass usage, deadlines, and team scoring status (`BUSINESS_RULE_PENDING` for §10). Keep a `DECISIONS.md` — an agent should not resolve an open domain or operational-policy question itself.
 2. **Data model + migrations + tests.** Participants (§3), cycle/challenge/submission lifecycles (§2), teams/policies/participation (§6–§7), the XP ledger (§4), raid entitlements (§5), audit/correction metadata. This step must explicitly include `participants` — an earlier draft of this playbook omitted it, which was itself flagged as an inconsistency.
 3. **Historical import + reconciliation.** Import July/August and prove all ~40 participants' totals recompute exactly against the source CSVs before any UI work begins — this is the strongest available proof the domain model represents reality.
 4. **Entra authentication + server-side authorization** (§12). Test participant-token rejection on manager endpoints, not just UI differences.
@@ -336,18 +340,42 @@ These are reasonable, defensible defaults for this org's environment (already Mi
 6. **Secure file storage** (§13).
 7. **CI + deployment to a non-production Azure environment.** Lint, typecheck, tests, build, migration dry-run, dependency scan, secret scan as required checks before merge.
 8. **UAT with Preety, using deliberately awkward real scenarios**, not just happy-path ones: a challenge still open past the calendar month boundary, one person claiming for three teammates, partial evidence arriving late, an extension, a resubmission, variable raid XP, a zero-score participant, a manager correction after the fact.
-9. **Teams outbound sync** — see §17 for the corrected technology choice.
+9. **Teams outbound sync** — see §18 for the corrected technology choice.
 10. **Teams inbound capture — only after 1–9 are proven and stable**, using a structured trigger (bot/@mention), not passive free-text channel monitoring.
 
 ---
 
-## 16. Reporting surfaces stay separate on purpose
+## 16. Screen inventory
+
+### Participant-facing
+- **Dashboard**
+- **Challenges**
+- **Submit Work**
+- **My Activity**
+- **My Team**
+- **Leaderboard**
+
+### Manager-facing
+- **Dashboard**
+- **Challenges**
+- **New Challenge**
+- **Review Queue**
+- **Scoresheet**
+- **Leaderboard**
+- **Analytics**
+- **Cycle Administration**
+
+The prototype is the approved visual/UX reference for these screens. The production implementation must follow the data, lifecycle, persistence, and authorization rules in this specification even where the prototype uses simplified mock state.
+
+---
+
+## 17. Reporting surfaces stay separate on purpose
 
 Unchanged from v1, reaffirmed: **Leaderboard** (public, minimal — rank + name/team + total; keep it glanceable, don't add itemized detail here), **My Activity** (participant's own itemized ledger only — avoids inviting score-comparison at a level of detail the Leaderboard is deliberately designed to avoid), **Scoresheet** (manager-only, full pivot over the ledger — now correctly reflecting §4's granularity rather than v1's over-simplified one-column-per-challenge).
 
 ---
 
-## 17. Teams integration — corrected technology, still phased
+## 18. Teams integration — corrected technology, still phased
 
 **Technology correction, independently verified via current Microsoft documentation (not just taken from the review on faith):** the **Bot Framework SDK and Bot Framework Emulator are archived**, no longer maintained, and stopped receiving support tickets after December 31, 2025. Microsoft's current guidance points to the **Teams SDK** (Teams-specific agents) or the **Microsoft 365 Agents SDK** (broader M365 agents) instead. Anywhere this spec or a prompt to a coding agent previously said "Bot Framework + Graph API," read "Teams SDK / Microsoft 365 Agents SDK, with Graph only where appropriate."
 
@@ -359,7 +387,7 @@ Unchanged from v1, reaffirmed: **Leaderboard** (public, minimal — rank + name/
 
 ---
 
-## 18. Visual design system
+## 19. Visual design system
 
 Unchanged from v1 — sourced directly from cpaaustralia.com screenshots, not an arbitrary palette:
 
@@ -373,13 +401,13 @@ Typography: `Sora` (display/headings), `Inter` (body), `JetBrains Mono` (XP valu
 
 ---
 
-## 19. AI-assisted authoring — unchanged scope, restated for clarity
+## 20. AI-assisted authoring — unchanged scope, restated for clarity
 
-A challenge has `category`, `name`, `description`, `dueAt` (now independent of cycle boundary, §2), an optional `heroImage`, and `tasks[]` (each with `name`, `xp`, `evidenceRequirement` per §8, and `scoringMode` per §7). AI assistance is scoped strictly to **polishing the description's wording** — it must never generate or alter XP values, dates, or the task list; those remain the manager's authoritative input. The structured data is the single source of truth that generates both the portal card and the Teams announcement (once §17's Phase 2 exists) — this replaces Preety's current manual poster-design work rather than imitating it.
+A challenge has `category`, `name`, `description`, `dueAt` (now independent of cycle boundary, §2), an optional `heroImage`, and `tasks[]` (each with `name`, `xp`, `evidenceRequirement` per §8, and `scoringMode` per §7). AI assistance is scoped strictly to **polishing the description's wording** — it must never generate or alter XP values, dates, or the task list; those remain the manager's authoritative input. The structured data is the single source of truth that generates both the portal card and the Teams announcement (once §18's Phase 2 exists) — this replaces Preety's current manual poster-design work rather than imitating it.
 
 ---
 
-## 20. What's real vs. simulated in the current prototype
+## 21. What's real vs. simulated in the current prototype
 
 The prototype (`prototype/pas-quest-portal.jsx`) remains a UX/visual reference rather than an implementation of the production data model.
 

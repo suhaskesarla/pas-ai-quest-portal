@@ -20,6 +20,22 @@ Not yet answered. Three questions are owed to Preety before the team-leaderboard
 
 ---
 
+
+### `POLICY_PENDING` — Evidence retention (spec §13)
+
+The storage architecture is settled (private Azure Blob Storage with authorized short-lived access), but the retention/deletion policy must be confirmed before production rollout.
+
+Decision required:
+
+1. **Approved evidence retention** — how long should approved submission evidence be retained?
+2. **Rejected evidence retention** — how long should rejected submission evidence be retained?
+3. **Automatic purge** — should rejected evidence be deleted automatically after a defined period?
+4. **Records-management requirements** — do CPA Australia information-retention, privacy, legal, or records-management policies prescribe the retention period or deletion process?
+
+**Do not invent a default retention period.** Until this is resolved, implementation should make retention configurable and must not enable destructive automatic deletion based on an assumed period.
+
+---
+
 ## Resolved
 
 *(Empty — nothing has been resolved since the freeze yet. When §10 is answered, add an entry below in this format:)*

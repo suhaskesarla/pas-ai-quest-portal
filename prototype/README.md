@@ -5,13 +5,13 @@
 ## What's real vs. simulated here
 
 This prototype correctly demonstrates:
-- The visual design system (colors, typography, component patterns — see spec §13)
+- The visual design system (colors, typography, component patterns — see the Visual Design System section of the frozen spec, currently §19)
 - The general shape of cycle-scoping, submission review, and bonus awards
 - Claimant vs. beneficiaries in the submission flow
 - `Needs Evidence` / `Resubmitted` states
 - A challenge remaining open past its calendar-month cycle boundary
 - `BUSINESS_RULE_PENDING` treatment on the Team Leaderboard
-- A full cycle roster including zero-XP participants
+- An explicit mock cycle roster including zero-XP participants
 
 It does **not** implement:
 - A real append-only `XPEntry` ledger (uses in-memory mock arrays instead)
@@ -20,7 +20,7 @@ It does **not** implement:
 - Any backend, database, authentication, or file storage — everything resets on page reload
 - Real Teams integration (the "Teams announcement preview" is a static mockup)
 
-See [`PORTAL_SPEC.md`](../docs/PORTAL_SPEC.md) §20 for the full, authoritative list.
+See [`PORTAL_SPEC.md`](../docs/PORTAL_SPEC.md) §21 for the full, authoritative list.
 
 ## Running it locally
 

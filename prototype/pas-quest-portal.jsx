@@ -47,8 +47,8 @@ const CATEGORY_COLOR = {
 };
 const categoryColor = (cat) => CATEGORY_COLOR[cat] || { fg: C.blue, bg: C.blueDim };
 
-// ---------- mock data (spec v3-aligned: UI/interaction shape only, not a real ledger) ----------
-const GUIDES_BY_CYCLE = {
+// ---------- mock data (frozen-spec-aligned UX/interaction shape only, not a real ledger) ----------
+const CHARACTER_ROSTER_BY_CYCLE = {
   jul26: [{ name: "Master Prompt-Fu", role: "Guide" }],
   aug26: [
     { name: "Vega", role: "Challenger" },
@@ -77,11 +77,10 @@ const AWARD_CATEGORIES = [
 ];
 const categoryLabel = (code) => AWARD_CATEGORIES.find((c) => c.code === code)?.label || code;
 
-// Full cycle roster, including zero-XP participants (spec §3 — CycleParticipant).
-// This is the direct fix for participants silently disappearing when the roster was
-// reconstructed only from team/submission/award activity.
+// Explicit mock cycle roster, including zero-XP participants (spec §3 — CycleParticipant).
+// This demonstrates that roster membership is not reconstructed from team/submission/award activity.
 const CYCLE_ROSTER = {
-  jul26: ["Paul Gregg", "Saurabh Chaudhary", "Arun Vadlakonda", "Kavita Khanna", "Neil Yanlin", "Diane Clark", "Angela Kaur"],
+  jul26: ["Suhas Kesarla", "Paul Gregg", "Saurabh Chaudhary", "Arun Vadlakonda", "Kavita Khanna", "Neil Yanlin", "Diane Clark", "Angela Kaur"],
   aug26: ["Suhas Kesarla", "Kanika Mehta", "Pooja Jhawar", "Kavita Khanna", "Saurabh Chaudhary", "Yanlin Gong", "Divya Varghese", "Keerthana Manogaran", "Yasir", "Diane Clark", "Angela Kaur", "Nikhil Gosavi"],
 };
 
@@ -99,9 +98,9 @@ const initialChallenges = [
     due: "21 Aug (extended from July)",
     status: "open",
     tasks: [
-      { id: "t0a", name: "Form a pair or trio and pick a movie theme", xp: 20, evidence: "image", scoringMode: "individual" },
-      { id: "t0b", name: "Submit your Top 5 AI Prompts document", xp: 40, evidence: "doc", scoringMode: "whole-team" },
-      { id: "t0c", name: "Submit supporting artifact / video", xp: 30, evidence: "video", scoringMode: "whole-team" },
+      { id: "t0a", name: "Form a pair or trio and pick a movie theme", xp: 20, evidence: "Attachment", scoringMode: "individual" },
+      { id: "t0b", name: "Submit your Top 5 AI Prompts document", xp: 40, evidence: "Attachment", scoringMode: "whole-team" },
+      { id: "t0c", name: "Submit supporting artifact / video", xp: 30, evidence: "Attachment", scoringMode: "whole-team" },
     ],
   },
   {
@@ -114,7 +113,7 @@ const initialChallenges = [
     due: "Closed",
     status: "closed",
     tasks: [
-      { id: "t0d", name: "Post your Friday Funny entry", xp: 10, evidence: "image", scoringMode: "individual" },
+      { id: "t0d", name: "Post your Friday Funny entry", xp: 10, evidence: "Attachment", scoringMode: "individual" },
     ],
   },
   {
@@ -127,9 +126,9 @@ const initialChallenges = [
     due: "Closed",
     status: "closed",
     tasks: [
-      { id: "t1", name: "Ask AI for a funny team-building activity", xp: 10, evidence: "image", scoringMode: "individual" },
-      { id: "t2", name: "Bonus: funniest idea of the week", xp: 5, evidence: "image", scoringMode: "individual" },
-      { id: "t3", name: "Bonus: most feasible idea we could run", xp: 5, evidence: "image", scoringMode: "individual" },
+      { id: "t1", name: "Ask AI for a funny team-building activity", xp: 10, evidence: "Attachment", scoringMode: "individual" },
+      { id: "t2", name: "Bonus: funniest idea of the week", xp: 5, evidence: "Attachment", scoringMode: "individual" },
+      { id: "t3", name: "Bonus: most feasible idea we could run", xp: 5, evidence: "Attachment", scoringMode: "individual" },
     ],
   },
   {
@@ -142,9 +141,9 @@ const initialChallenges = [
     due: "31 Aug",
     status: "open",
     tasks: [
-      { id: "t4", name: "Team formation — name, members, mission", xp: 10, evidence: "image", scoringMode: "whole-team" },
-      { id: "t5", name: "Complete the Azure AI agents learning path", xp: 20, evidence: "doc", scoringMode: "claimant-selects" },
-      { id: "t6", name: "Submit your working agent + short writeup", xp: 30, evidence: "video", scoringMode: "claimant-selects" },
+      { id: "t4", name: "Team formation — name, members, mission", xp: 10, evidence: "Multiple", scoringMode: "whole-team" },
+      { id: "t5", name: "Complete the Azure AI agents learning path", xp: 20, evidence: "Attachment", scoringMode: "claimant-selects" },
+      { id: "t6", name: "Submit your working agent + short writeup", xp: 30, evidence: "Multiple", scoringMode: "claimant-selects" },
     ],
   },
   {
@@ -157,7 +156,7 @@ const initialChallenges = [
     due: "Closed",
     status: "closed",
     tasks: [
-      { id: "t7", name: "Attend and answer raid questions", xp: 12, evidence: "doc", scoringMode: "attendance" },
+      { id: "t7", name: "Attend and answer raid questions", xp: 12, evidence: "None", scoringMode: "attendance" },
     ],
   },
 ];
@@ -222,8 +221,15 @@ const NAV = [
   { id: "analytics", label: "Analytics", icon: BarChart3, roles: ["manager"] },
 ];
 
-const evidenceIcon = (type) =>
-  type === "image" ? ImageIcon : type === "video" ? Video : type === "link" ? Send : FileText;
+const evidenceIcon = (type) => {
+  const normalized = String(type || "").toLowerCase();
+  if (normalized === "image") return ImageIcon;
+  if (normalized === "video") return Video;
+  if (normalized === "link") return Send;
+  if (normalized === "attachment" || normalized === "multiple" || normalized === "custom") return Paperclip;
+  if (normalized === "none") return CheckCircle2;
+  return FileText;
+};
 
 const STATUS_STYLE = {
   "Approved": { color: C.green, icon: CheckCircle2 },
@@ -409,12 +415,16 @@ export default function PASQuestPortal() {
     setSubmissions((prev) => prev.map((s) => (s.id === id ? { ...s, status: "Resubmitted", comment: comment || s.comment, submittedAt: "Just now" } : s)));
     showToast("Resubmitted for review");
   };
-  const awardXP = ({ member, categoryCode, reason, xp }) => {
+  const awardXP = ({ member, categoryCode, reason, xp, cycleId }) => {
+    if (!cycleId) {
+      showToast("Choose a specific reporting cycle before awarding XP");
+      return;
+    }
     setAwards((prev) => [
-      { id: `a${prev.length + 1}`, cycleId: CURRENT_CYCLE, member, categoryCode, reason, xp, awardedAt: "Just now" },
+      { id: `a${prev.length + 1}`, cycleId, member, categoryCode, reason, xp, awardedAt: "Just now" },
       ...prev,
     ]);
-    showToast(`${xp} XP awarded to ${member}`);
+    showToast(`${xp} XP awarded to ${member} for ${CYCLES.find((c) => c.id === cycleId)?.label || cycleId}`);
   };
   const createChallenge = (challenge) => {
     setChallenges((prev) => [...prev, { ...challenge, id: `c${prev.length + 1}`, cycleId: CURRENT_CYCLE, status: "open" }]);
@@ -609,6 +619,8 @@ export default function PASQuestPortal() {
             onApprove={approveSubmission} onReject={rejectSubmission} onRequestEvidence={requestMoreEvidence}
             awards={cycleAwards} onAwardXP={awardXP}
             rosterHint={rosterForCycle}
+            awardCycleId={selectedCycle === "all" ? null : selectedCycle}
+            awardCycleLabel={selectedCycle === "all" ? null : activeCycleMeta?.label}
           />
         )}
         {tab === "scoresheet" && (
@@ -636,7 +648,7 @@ export default function PASQuestPortal() {
 
 // ---------------- Dashboard ----------------
 function Dashboard({ role, challenges, submissions, myTeam, myPoints, pendingReviewCount, setTab, cycleLabel, cycleId, awardsCount }) {
-  const guides = cycleId === "all" ? Object.values(GUIDES_BY_CYCLE).flat() : (GUIDES_BY_CYCLE[cycleId] || []);
+  const characters = cycleId === "all" ? Object.values(CHARACTER_ROSTER_BY_CYCLE).flat() : (CHARACTER_ROSTER_BY_CYCLE[cycleId] || []);
 
   if (role === "manager") {
     const totalSubs = submissions.length;
@@ -689,13 +701,13 @@ function Dashboard({ role, challenges, submissions, myTeam, myPoints, pendingRev
         ))}
       </Panel>
       <Panel accent={C.purple}>
-        <div style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 15, marginBottom: 6, color: C.navy }}>Your guides</div>
+        <div style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 15, marginBottom: 6, color: C.navy }}>This cycle's characters</div>
         <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>
-          {guides.length > 0 ? "Reach out if you're stuck on a challenge." : `No named guide was assigned in ${cycleLabel}.`}
+          {characters.length > 0 ? "Available characters for this cycle's theme. Individual challenges/announcements may assign them differently." : `No named characters are configured for ${cycleLabel}.`}
         </div>
-        {guides.length > 0 && (
+        {characters.length > 0 && (
           <div style={{ display: "flex", gap: 10 }}>
-            {guides.map((g) => (
+            {characters.map((g) => (
               <div key={g.name} style={{ flex: 1, background: C.purpleDim, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
                 <Sparkles size={14} style={{ color: C.purple, marginBottom: 6 }} />
                 <div style={{ fontSize: 12.5, fontWeight: 600, color: C.navy }}>{g.name}</div>
@@ -814,7 +826,7 @@ function ChallengeCard({ c, setTab, role, showSubmit }) {
 }
 
 // ---------------- Create Challenge ----------------
-const EVIDENCE_TYPES = ["image", "doc", "video", "text", "link"];
+const EVIDENCE_TYPES = ["None", "Text", "Link", "Attachment", "Multiple", "Custom"];
 const SCORING_MODES = ["individual", "whole-team", "claimant-selects", "attendance"];
 
 function CreateChallengeView({ onCreate }) {
@@ -824,7 +836,7 @@ function CreateChallengeView({ onCreate }) {
   const [due, setDue] = useState("");
   const [heroFile, setHeroFile] = useState(null);
   const [heroPreview, setHeroPreview] = useState(null);
-  const [tasks, setTasks] = useState([{ id: "n1", name: "", xp: 10, evidence: "image", scoringMode: "individual" }]);
+  const [tasks, setTasks] = useState([{ id: "n1", name: "", xp: 10, evidence: "Attachment", scoringMode: "individual" }]);
   const [error, setError] = useState("");
   const [polishing, setPolishing] = useState(false);
 
@@ -837,7 +849,7 @@ function CreateChallengeView({ onCreate }) {
   };
 
   const updateTask = (id, patch) => setTasks((prev) => prev.map((t) => t.id === id ? { ...t, ...patch } : t));
-  const addTask = () => setTasks((prev) => [...prev, { id: `n${prev.length + 1}`, name: "", xp: 5, evidence: "image", scoringMode: "individual" }]);
+  const addTask = () => setTasks((prev) => [...prev, { id: `n${prev.length + 1}`, name: "", xp: 5, evidence: "Attachment", scoringMode: "individual" }]);
   const removeTask = (id) => setTasks((prev) => prev.length > 1 ? prev.filter((t) => t.id !== id) : prev);
 
   const polishWithAI = () => {
@@ -974,6 +986,8 @@ function SubmitView({ challenges, teams, setSubmissions, showToast }) {
   const [challengeId, setChallengeId] = useState(challenges[0]?.id || "");
   const [taskId, setTaskId] = useState(challenges[0]?.tasks[0]?.id || "");
   const [files, setFiles] = useState([]);
+  const [textResponse, setTextResponse] = useState("");
+  const [linkValue, setLinkValue] = useState("");
   const [comment, setComment] = useState("");
   const [selectedBeneficiaries, setSelectedBeneficiaries] = useState([CURRENT_USER.name]);
   const [error, setError] = useState("");
@@ -988,6 +1002,7 @@ function SubmitView({ challenges, teams, setSubmissions, showToast }) {
     setChallengeId(id);
     const c = challenges.find((c) => c.id === id);
     setTaskId(c.tasks[0].id);
+    setFiles([]); setTextResponse(""); setLinkValue(""); setError("");
   };
 
   React.useEffect(() => {
@@ -1020,19 +1035,35 @@ function SubmitView({ challenges, teams, setSubmissions, showToast }) {
 
   const handleSubmit = () => {
     if (!challenge || !task) { setError("Pick a challenge and task first."); return; }
-    if (files.length === 0) { setError("Attach at least one file before submitting."); return; }
+    if (task.scoringMode === "attendance") { setError("Attendance is recorded by the Quest Manager — no participant submission is required."); return; }
+
+    const requirement = task.evidence || "Attachment";
+    if (requirement === "Text" && !textResponse.trim()) { setError("Enter the required text response."); return; }
+    if (requirement === "Link" && !linkValue.trim()) { setError("Enter the required link."); return; }
+    if (requirement === "Attachment" && files.length === 0) { setError("Attach at least one file."); return; }
+    if (requirement === "Multiple" && files.length === 0 && !textResponse.trim() && !linkValue.trim()) {
+      setError("Add at least one evidence item: text, link, or attachment."); return;
+    }
+    if (requirement === "Custom" && files.length === 0 && !textResponse.trim() && !linkValue.trim()) {
+      setError("Add evidence following the manager's custom instruction."); return;
+    }
     if (selectedBeneficiaries.length === 0) { setError("Choose at least one person this submission is for."); return; }
+
     setError("");
     setSubmissions((prev) => [
       {
         id: `s${prev.length + 1}`, challengeId, taskId, team: teamForChallenge?.name || "No team",
         claimant: CURRENT_USER.name, beneficiaries: selectedBeneficiaries,
-        fileName: files.map((f) => f.name).join(", "), fileType: files[0].type, comment,
+        fileName: files.map((f) => f.name).join(", "),
+        fileType: files[0]?.type || (linkValue.trim() ? "link" : "text"),
+        textResponse: textResponse.trim(),
+        links: linkValue.trim() ? [linkValue.trim()] : [],
+        comment,
         status: "Under Review", xp: 0, submittedAt: "Just now", reviewerComment: "",
       },
       ...prev,
     ]);
-    setFiles([]); setComment("");
+    setFiles([]); setTextResponse(""); setLinkValue(""); setComment("");
     showToast("Submission received — status: Under Review");
   };
 
@@ -1089,51 +1120,89 @@ function SubmitView({ challenges, teams, setSubmissions, showToast }) {
             )}
           </Field>
         )}
-        <Field label={`Evidence — expects ${task?.evidence}, but images, docs and video are all accepted`}>
-          <label style={{
-            ...selectStyle, padding: "16px 12px", display: "flex", flexDirection: "column", alignItems: "center",
-            gap: 6, cursor: "pointer", border: `1.5px dashed ${C.borderStrong}`, background: C.surfaceMuted,
-          }}>
-            <Paperclip size={16} style={{ color: C.muted }} />
-            <span style={{ fontSize: 12, color: C.muted }}>Click to attach files — images, docs, or video</span>
-            <input type="file" multiple onChange={(e) => addFiles(e.target.files)} style={{ display: "none" }} />
-          </label>
-          {files.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-              {files.map((f) => {
-                const Icon = evidenceIcon(f.type);
-                return (
-                  <div key={f.id} style={{ position: "relative", width: 72 }}>
-                    {f.preview ? (
-                      <img src={f.preview} alt="" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: `1px solid ${C.border}` }} />
-                    ) : (
-                      <div style={{ width: 72, height: 72, borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Icon size={20} style={{ color: C.muted }} />
-                      </div>
-                    )}
-                    <button onClick={() => removeFile(f.id)} style={{
-                      position: "absolute", top: -6, right: -6, background: C.navy, border: `2px solid ${C.surface}`,
-                      borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff",
-                    }}><X size={11} /></button>
-                    <div style={{ fontSize: 9.5, color: C.muted, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</div>
-                  </div>
-                );
-              })}
+        {task?.scoringMode === "attendance" ? (
+          <div style={{ background: C.tealDim, border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px", fontSize: 12.5, color: C.muted, marginBottom: 14 }}>
+            <ShieldCheck size={14} style={{ color: C.teal, verticalAlign: -2, marginRight: 6 }} />
+            Attendance for this task is recorded by the Quest Manager. No participant submission is required.
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 8 }}>
+              Evidence requirement: <strong style={{ color: C.navy }}>{task?.evidence || "Attachment"}</strong>
+              {task?.evidence === "Custom" ? " — follow the manager's instruction; this prototype allows text, link and attachment inputs." : ""}
             </div>
-          )}
-        </Field>
+
+            {(task?.evidence === "Text" || task?.evidence === "Multiple" || task?.evidence === "Custom") && (
+              <Field label="Text response">
+                <textarea value={textResponse} onChange={(e) => setTextResponse(e.target.value)} rows={3}
+                  placeholder="Enter your evidence or explanation"
+                  style={{ ...selectStyle, resize: "vertical", fontFamily: fontBody }} />
+              </Field>
+            )}
+
+            {(task?.evidence === "Link" || task?.evidence === "Multiple" || task?.evidence === "Custom") && (
+              <Field label="Evidence link">
+                <input value={linkValue} onChange={(e) => setLinkValue(e.target.value)} placeholder="https://..." style={selectStyle} />
+              </Field>
+            )}
+
+            {(task?.evidence === "Attachment" || task?.evidence === "Multiple" || task?.evidence === "Custom") && (
+              <Field label="Attachments">
+                <label style={{
+                  ...selectStyle, padding: "16px 12px", display: "flex", flexDirection: "column", alignItems: "center",
+                  gap: 6, cursor: "pointer", border: `1.5px dashed ${C.borderStrong}`, background: C.surfaceMuted,
+                }}>
+                  <Paperclip size={16} style={{ color: C.muted }} />
+                  <span style={{ fontSize: 12, color: C.muted }}>Click to attach files — images, documents, or video</span>
+                  <input type="file" multiple onChange={(e) => addFiles(e.target.files)} style={{ display: "none" }} />
+                </label>
+                {files.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                    {files.map((f) => {
+                      const Icon = evidenceIcon(f.type);
+                      return (
+                        <div key={f.id} style={{ position: "relative", width: 72 }}>
+                          {f.preview ? (
+                            <img src={f.preview} alt="" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: `1px solid ${C.border}` }} />
+                          ) : (
+                            <div style={{ width: 72, height: 72, borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <Icon size={20} style={{ color: C.muted }} />
+                            </div>
+                          )}
+                          <button onClick={() => removeFile(f.id)} style={{
+                            position: "absolute", top: -6, right: -6, background: C.navy, border: `2px solid ${C.surface}`,
+                            borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff",
+                          }}><X size={11} /></button>
+                          <div style={{ fontSize: 9.5, color: C.muted, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Field>
+            )}
+
+            {task?.evidence === "None" && (
+              <div style={{ background: C.greenDim, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", fontSize: 12.5, color: C.muted, marginBottom: 14 }}>
+                No evidence is required for this task.
+              </div>
+            )}
+          </>
+        )}
         <Field label="Comment (optional)">
           <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3}
             placeholder="Add context for the reviewer"
             style={{ ...selectStyle, resize: "vertical", fontFamily: fontBody, padding: "9px 12px" }} />
         </Field>
         {error && <div style={{ color: C.red, fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
-        <button onClick={handleSubmit} style={{
-          background: C.blue, border: "none", color: "#fff", fontWeight: 600, fontSize: 13.5,
-          padding: "10px 18px", borderRadius: 999, width: "100%",
-        }}>
-          Submit for review
-        </button>
+        {task?.scoringMode !== "attendance" && (
+          <button onClick={handleSubmit} style={{
+            background: C.blue, border: "none", color: "#fff", fontWeight: 600, fontSize: 13.5,
+            padding: "10px 18px", borderRadius: 999, width: "100%",
+          }}>
+            Submit for review
+          </button>
+        )}
       </Panel>
     </div>
   );
@@ -1365,7 +1434,7 @@ function LeaderboardView({ memberPoints, teams }) {
 }
 
 // ---------------- Review Queue ----------------
-function ReviewView({ submissions, challenges, onApprove, onReject, onRequestEvidence, awards, onAwardXP, rosterHint }) {
+function ReviewView({ submissions, challenges, onApprove, onReject, onRequestEvidence, awards, onAwardXP, rosterHint, awardCycleId, awardCycleLabel }) {
   const pending = submissions.filter((s) => s.status === "Under Review" || s.status === "Resubmitted");
   const resolved = submissions.filter((s) => !["Under Review", "Resubmitted"].includes(s.status));
   const [showAward, setShowAward] = useState(false);
@@ -1376,12 +1445,16 @@ function ReviewView({ submissions, challenges, onApprove, onReject, onRequestEvi
   const [error, setError] = useState("");
 
   const submitAward = () => {
+    if (!awardCycleId) {
+      setError("Choose a specific reporting cycle before awarding XP.");
+      return;
+    }
     if (!member.trim() || !reason.trim() || !xp || Number(xp) <= 0) {
       setError("Enter a participant, reason, and a positive XP amount.");
       return;
     }
     setError("");
-    onAwardXP({ member: member.trim(), categoryCode, reason: reason.trim(), xp: Number(xp) });
+    onAwardXP({ member: member.trim(), categoryCode, reason: reason.trim(), xp: Number(xp), cycleId: awardCycleId });
     setMember(""); setReason(""); setXp(""); setShowAward(false);
   };
 
@@ -1401,6 +1474,11 @@ function ReviewView({ submissions, challenges, onApprove, onReject, onRequestEvi
       </div>
       {showAward && (
         <Panel style={{ marginBottom: 20, maxWidth: 480 }} accent={C.gold}>
+          <Field label="Reporting cycle">
+            <div style={{ ...selectStyle, color: awardCycleId ? C.navy : C.red, background: awardCycleId ? C.surfaceMuted : C.redDim }}>
+              {awardCycleLabel || "Choose a specific cycle from the cycle selector above"}
+            </div>
+          </Field>
           <Field label="Participant">
             <input value={member} onChange={(e) => setMember(e.target.value)} placeholder="e.g. Angela Kaur" list="roster" style={selectStyle} />
             <datalist id="roster">{rosterHint?.map((n) => <option key={n} value={n} />)}</datalist>
@@ -1487,13 +1565,15 @@ function SubmissionRow({ s, challenges, onApprove, onReject, onRequestEvidence, 
           {showBeneficiaries && (
             <div style={{ fontSize: 11.5, color: C.blue, marginTop: 3, fontWeight: 600 }}>For: {s.beneficiaries.join(", ")}</div>
           )}
+          {s.textResponse && <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}><strong>Text:</strong> {s.textResponse}</div>}
+          {s.links?.length > 0 && <div style={{ fontSize: 12, color: C.blue, marginTop: 4 }}><strong>Link:</strong> {s.links.join(", ")}</div>}
           {s.comment && <div style={{ fontSize: 12, color: C.muted, marginTop: 6, fontStyle: "italic" }}>"{s.comment}"</div>}
           {s.reviewerComment && (
             <div style={{ fontSize: 12, color: "#9A4A15", marginTop: 6, display: "flex", alignItems: "center", gap: 5 }}>
               <MessageSquare size={11} /> {s.reviewerComment}
             </div>
           )}
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 6, fontFamily: fontMono }}>{s.fileName}</div>
+          {s.fileName && <div style={{ fontSize: 11, color: C.muted, marginTop: 6, fontFamily: fontMono }}>{s.fileName}</div>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 5, color: st.color, fontSize: 12, fontWeight: 600 }}>
@@ -1537,35 +1617,56 @@ function ScoresheetView({ challenges, roster, submissions, awards, cycleLabel, r
     [awards]
   );
 
+  const taskColumns = useMemo(
+    () => challenges.flatMap((challenge) =>
+      challenge.tasks.map((task, index) => ({
+        challengeId: challenge.id,
+        taskId: task.id,
+        label: `${challenge.category}${challenge.eyebrow.match(/\d+/) ? ` ${challenge.eyebrow.match(/\d+/)[0]}` : ""} T${index + 1}`,
+        title: `${challenge.name} — ${task.name}`,
+      }))
+    ),
+    [challenges]
+  );
+
   const rows = useMemo(() => {
     return roster.map((name) => {
-      const perChallenge = {};
-      challenges.forEach((c) => {
-        const xp = submissions
-          .filter((s) => s.status === "Approved" && s.challengeId === c.id && s.beneficiaries.includes(name))
+      const perTask = {};
+      taskColumns.forEach((col) => {
+        perTask[col.taskId] = submissions
+          .filter((s) =>
+            s.status === "Approved" &&
+            s.challengeId === col.challengeId &&
+            s.taskId === col.taskId &&
+            s.beneficiaries.includes(name)
+          )
           .reduce((sum, s) => sum + s.xp, 0);
-        perChallenge[c.id] = xp;
       });
+
       const perCategory = {};
       categoriesPresent.forEach((code) => {
-        perCategory[code] = awards.filter((a) => a.member === name && a.categoryCode === code).reduce((sum, a) => sum + a.xp, 0);
+        perCategory[code] = awards
+          .filter((a) => a.member === name && a.categoryCode === code)
+          .reduce((sum, a) => sum + a.xp, 0);
       });
-      const total = Object.values(perChallenge).reduce((a, b) => a + b, 0) + Object.values(perCategory).reduce((a, b) => a + b, 0);
-      return { name, perChallenge, perCategory, total };
-    }).sort((a, b) => sortDesc ? b.total - a.total : a.total - b.total);
-  }, [roster, challenges, submissions, awards, categoriesPresent, sortDesc]);
 
-  const shortName = (c) => c.category + (c.eyebrow.match(/\d+/) ? ` ${c.eyebrow.match(/\d+/)[0]}` : "");
+      const total =
+        Object.values(perTask).reduce((a, b) => a + b, 0) +
+        Object.values(perCategory).reduce((a, b) => a + b, 0);
+
+      return { name, perTask, perCategory, total };
+    }).sort((a, b) => sortDesc ? b.total - a.total : a.total - b.total);
+  }, [roster, taskColumns, submissions, awards, categoriesPresent, sortDesc]);
 
   return (
     <div>
       <SectionTitle eyebrow={cycleLabel ? `${cycleLabel.toUpperCase()} · REPLACES THE CSV` : "REPLACES THE CSV"} title="Scoresheet" />
       <Panel accent={C.blue} style={{ padding: 0, overflow: "auto" }}>
-        <table style={{ width: "100%", minWidth: 640, borderCollapse: "collapse", fontSize: 13 }}>
+        <table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ background: C.surfaceMuted }}>
               <th style={thStyle}>Participant</th>
-              {challenges.map((c) => <th key={c.id} style={thStyle}>{shortName(c)}</th>)}
+              {taskColumns.map((col) => <th key={col.taskId} title={col.title} style={thStyle}>{col.label}</th>)}
               {categoriesPresent.map((code) => <th key={code} style={thStyle}>{categoryLabel(code)}</th>)}
               <th style={{ ...thStyle, cursor: "pointer", color: C.blue }} onClick={() => setSortDesc((v) => !v)}>
                 Total {sortDesc ? "↓" : "↑"}
@@ -1576,9 +1677,9 @@ function ScoresheetView({ challenges, roster, submissions, awards, cycleLabel, r
             {rows.map((r, i) => (
               <tr key={r.name} style={{ background: i % 2 === 0 ? C.surface : C.surfaceMuted }}>
                 <td style={{ ...tdStyle, fontWeight: 500, color: C.navy }}>{r.name}</td>
-                {challenges.map((c) => (
-                  <td key={c.id} style={{ ...tdStyle, fontFamily: fontMono, color: r.perChallenge[c.id] ? C.navy : C.border }}>
-                    {r.perChallenge[c.id] || "—"}
+                {taskColumns.map((col) => (
+                  <td key={col.taskId} style={{ ...tdStyle, fontFamily: fontMono, color: r.perTask[col.taskId] ? C.navy : C.border }}>
+                    {r.perTask[col.taskId] || "—"}
                   </td>
                 ))}
                 {categoriesPresent.map((code) => (
@@ -1593,7 +1694,7 @@ function ScoresheetView({ challenges, roster, submissions, awards, cycleLabel, r
         </table>
       </Panel>
       <div style={{ fontSize: 11.5, color: C.muted, marginTop: 10, marginBottom: 22 }}>
-        Every cell traces back to an approved submission or a bonus award, broken out by category rather than one flat "Bonus XP" column — nothing is typed in directly, so totals can't drift out of sync. Includes zero-XP participants from the full cycle roster, not just people with activity.
+        Every task has its own column, followed by configurable manual-award categories. Every cell traces back to an approved submission or award; nothing is typed in directly. Includes zero-XP participants from the explicit mock cycle roster, not just people with activity.
       </div>
 
       {raidPasses.length > 0 && (

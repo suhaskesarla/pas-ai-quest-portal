@@ -71,16 +71,20 @@ rewriting history.
 ### Challenges and submissions
 
 ```text
-Challenge -> cycleId, status, openAt, dueAt, closeAt,
-tasks[]
+Challenge -> cycleId, status, openAt, dueAt, closeAt
+ChallengeTask -> challengeId, name, xp, evidenceRequirement, scoringMode
+
 Submission -> claimantId, challengeId, taskId,
-challengeParticipationId?, beneficiaries[], evidence[], status
+challengeParticipationId?, status
+SubmissionBeneficiary -> submissionId, participantId
+SubmissionEvidence -> submissionId, type/reference/metadata
 SubmissionEvent -> status/audit history
 ```
 
-challengeParticipationId answers 'who worked together'.
-beneficiaries[] answers 'who is claiming/receiving XP from this
-submission'. They are intentionally not inferred from each other.
+`challengeParticipationId` answers 'who worked together'.
+`SubmissionBeneficiary` rows answer 'who is claiming/receiving XP from this
+submission'. They are intentionally not inferred from each other. The relational
+child tables keep task, beneficiary and evidence data queryable/auditable in Azure SQL.
 
 ## 4. XP is an append-only ledger
 
@@ -181,8 +185,12 @@ stored on the raid record.
     short-lived access using a user-delegation SAS.
 
 Permanent public blob URLs are not part of the design. File size limits,
-MIME/type validation, malware scanning and retention/deletion rules are
-implementation requirements.
+MIME/type validation and malware scanning are implementation requirements.
+
+**`POLICY_PENDING` — evidence retention:** the retention/deletion period for approved
+and rejected evidence is not yet a settled product/records-management rule. Check
+`DECISIONS.md`; do not invent or hardcode a duration, and do not enable destructive
+automatic deletion until the policy is confirmed. Retention should be configurable.
 
 ## 8. Authentication and authorization
 

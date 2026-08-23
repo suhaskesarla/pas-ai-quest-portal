@@ -1,10 +1,12 @@
 # --- Secrets / local-only content ---
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+# Real Teams exports / source score sheets — never commit
+local-source-evidence/
 *.local.json
 appsettings.Local.json
-appsettings.Development.json
+appsettings.*.Local.json
 /evidence/
 /local-secrets/
 
