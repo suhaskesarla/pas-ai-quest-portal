@@ -1,0 +1,49 @@
+# --- Secrets / local-only content ---
+.env
+.env.local
+.env.*.local
+*.local.json
+appsettings.Local.json
+appsettings.Development.json
+/evidence/
+/local-secrets/
+
+# --- Node / React frontend ---
+node_modules/
+dist/
+build/
+.vite/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+
+# --- .NET backend ---
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.dbmdl
+*.dbproj.schemaview
+
+# --- EF Core / local databases ---
+*.mdf
+*.ldf
+*.db
+
+# --- Azure / deployment ---
+*.PublishSettings
+.azure/
+azurite-*/
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Build artifacts / logs ---
+*.tmp
+*.bak
