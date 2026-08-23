@@ -1,0 +1,60 @@
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #0a1f44;
+  background: #f4f5f7;
+  font-synthesis: none;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+.card {
+  width: min(36rem, 100%);
+  padding: 2rem;
+  background: #fff;
+  border: 1px solid #dfe3e8;
+  border-top: 3px solid #1b5fce;
+  border-radius: 0.75rem;
+  box-shadow: 0 0.75rem 2rem rgb(10 31 68 / 8%);
+}
+
+.eyebrow {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+}
+
+h1 {
+  font-family: Sora, Inter, system-ui, sans-serif;
+}
+
+.status {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.status--checking {
+  background: #ffc72c;
+}
+
+.status--healthy {
+  color: #fff;
+  background: #00a19a;
+}
+
+.status--unavailable {
+  color: #fff;
+  background: #e8631c;
+}

@@ -6,7 +6,7 @@ An internal web portal replacing the current Teams-chat-and-Excel workflow for t
 
 **Requirements are frozen.** Four rounds of independent review checked the spec against the actual program's Teams chat export and score-sheet CSVs before it was locked. The only deliberately open item is the Team Leaderboard scoring formula — see [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-Implementation has not started yet. The next step is handing [`docs/BUILD_PLAYBOOK.md`](docs/BUILD_PLAYBOOK.md) to a coding agent (Codex) and working through it step by step.
+Implementation follows [`docs/BUILD_PLAYBOOK.md`](docs/BUILD_PLAYBOOK.md) one reviewed step at a time. The Step 2 solution scaffold and local development environment are now available; the domain model has not been started.
 
 ## Where to look
 
@@ -16,6 +16,7 @@ Implementation has not started yet. The next step is handing [`docs/BUILD_PLAYBO
 | [`docs/TECHNICAL_ARCHITECTURE.md`](docs/TECHNICAL_ARCHITECTURE.md) | Implementation-facing companion — how the spec's rules map onto Azure SQL, Blob Storage, Entra ID, and the rest of the stack. |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Running log of anything resolved after the freeze. Check here before treating any spec-marked-open question as still unanswered. |
 | [`docs/BUILD_PLAYBOOK.md`](docs/BUILD_PLAYBOOK.md) | Step-by-step instructions for directing a coding agent through the build, with git-checkpoint discipline. |
+| [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md) | Docker-based setup for the frontend, API, SQL Server, Azurite, and development stub identity. |
 | [`prototype/pas-quest-portal.jsx`](prototype/pas-quest-portal.jsx) | A working, clickable UX/visual-reference prototype (mock data, no real backend). See its own README for what's real vs. simulated. |
 
 ## Why this exists
