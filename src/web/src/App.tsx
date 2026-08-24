@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import { QUEST_MANAGER_ROLE, QUEST_PARTICIPANT_ROLE } from './auth/types'
+import { ActivityList, ChallengeList, ReviewQueue, SubmissionForm, WorkflowState } from './workflow/WorkflowViews'
+import { workflowApi, workflowErrorMessage, type WorkflowApi } from './workflow/workflowApi'
+import type { EligibleChallenge, SubmissionView, TaskSummary } from './workflow/types'
 
 const navigation = [
   { id: 'dashboard', label: 'Dashboard', roles: [QUEST_PARTICIPANT_ROLE, QUEST_MANAGER_ROLE] },
@@ -48,17 +51,53 @@ function DemoAuthControl({ onSwitched }: { onSwitched: () => void }) {
   )
 }
 
-function AuthenticatedShell() {
+function AuthenticatedShell({ api }: { api: WorkflowApi }) {
   const { currentUser, demoModeAvailable, switching } = useAuth()
   const [activePage, setActivePage] = useState('dashboard')
-  if (!currentUser) return null
-  const roles = new Set(currentUser.roles)
+  const [challenges, setChallenges] = useState<EligibleChallenge[]>([])
+  const [submissions, setSubmissions] = useState<SubmissionView[]>([])
+  const [reviewQueue, setReviewQueue] = useState<SubmissionView[]>([])
+  const [selected, setSelected] = useState<{ challenge: EligibleChallenge; task: TaskSummary } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [workflowError, setWorkflowError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const roles = new Set(currentUser?.roles ?? [])
   const items = navigation.filter((item) => item.roles.some((role) => roles.has(role)))
+  const isParticipant = roles.has(QUEST_PARTICIPANT_ROLE)
+  const isManager = roles.has(QUEST_MANAGER_ROLE)
+
+  const loadParticipant = useCallback(async () => {
+    const [nextChallenges, nextSubmissions] = await Promise.all([api.getEligibleChallenges(), api.getMySubmissions()])
+    setChallenges(nextChallenges); setSubmissions(nextSubmissions)
+  }, [api])
+  const loadManager = useCallback(async () => { setReviewQueue(await api.getReviewQueue()) }, [api])
+  const loadWorkflow = useCallback(async () => {
+    setLoading(true); setWorkflowError(null)
+    try { if (isParticipant) await loadParticipant(); if (isManager) await loadManager() }
+    catch (error) { setWorkflowError(workflowErrorMessage(error)) }
+    finally { setLoading(false) }
+  }, [isParticipant, isManager, loadParticipant, loadManager])
+
+  useEffect(() => { void loadWorkflow() }, [loadWorkflow])
+
+  if (!currentUser) return null
+
+  const navigate = (page: string) => { setNotice(null); if (page !== 'submit') setSelected(null); setActivePage(page) }
+
+  let pageContent: React.ReactNode
+  if (activePage === 'challenges' && isParticipant) pageContent = <ChallengeList challenges={challenges} loading={loading} error={workflowError} onSelectTask={(challenge, task) => { setSelected({ challenge, task }); setActivePage('submit') }} />
+  else if (activePage === 'submit' && isParticipant) pageContent = selected
+    ? <SubmissionForm currentUser={currentUser} challenge={selected.challenge} task={selected.task} api={api} onCancel={() => navigate('challenges')} onSubmitted={() => { setNotice('Submission confirmed by the API.'); setSelected(null); setActivePage('activity'); void loadParticipant() }} />
+    : <ChallengeList challenges={challenges} loading={loading} error={workflowError} onSelectTask={(challenge, task) => setSelected({ challenge, task })} />
+  else if (activePage === 'activity' && isParticipant) pageContent = <ActivityList submissions={submissions} loading={loading} error={workflowError} api={api} onRefresh={async () => { await loadParticipant(); setNotice('Submission updated from the API.') }} />
+  else if (activePage === 'review' && isManager) pageContent = <ReviewQueue submissions={reviewQueue} loading={loading} error={workflowError} api={api} onRefresh={async () => { await loadManager(); setNotice('Review outcome confirmed by the API.') }} />
+  else if (activePage === 'dashboard') pageContent = <section className="card"><p className="eyebrow">STEP 6</p><h2>Welcome, {currentUser.displayName}</h2><p>{isManager ? `${reviewQueue.length} submission${reviewQueue.length === 1 ? '' : 's'} waiting for review.` : `${challenges.filter((challenge) => challenge.isEligible).length} eligible challenge${challenges.length === 1 ? '' : 's'} available.`}</p></section>
+  else pageContent = <WorkflowState text="This portal area is outside the current Step 6 workflow." />
 
   return <div className={`portal-shell${switching ? ' portal-shell--switching' : ''}`} aria-busy={switching}>
     <aside className="sidebar">
       <div className="brand"><span>PAS</span><strong>AI<br />QUEST</strong></div>
-      <nav aria-label="Primary navigation">{items.map((item) => <button className={activePage === item.id ? 'nav-active' : ''} type="button" key={item.id} onClick={() => setActivePage(item.id)} disabled={switching}>{item.label}</button>)}</nav>
+      <nav aria-label="Primary navigation">{items.map((item) => <button className={activePage === item.id ? 'nav-active' : ''} type="button" key={item.id} onClick={() => navigate(item.id)} disabled={switching}>{item.label}</button>)}</nav>
       {demoModeAvailable && <DemoAuthControl onSwitched={() => setActivePage('dashboard')} />}
     </aside>
     {demoModeAvailable && <div className="demo-badge">DEVELOPMENT · DEMO AUTH ACTIVE</div>}
@@ -66,15 +105,16 @@ function AuthenticatedShell() {
       <header className="page-header"><div><p className="eyebrow">AUTH SCAFFOLDING</p><h1>{navigation.find((item) => item.id === activePage)?.label ?? 'Dashboard'}</h1></div>
         <div className="identity" aria-label="Active identity"><span>Active identity</span><strong>{currentUser.displayName}</strong><div>{currentUser.roles.map((role) => <span className="role" key={role}>{readableRole(role)}</span>)}</div></div>
       </header>
-      <section className="card"><p className="eyebrow">STEP 5A</p><h2>Welcome, {currentUser.displayName}</h2><p>Your identity and available navigation were confirmed by the API. Portal workflows are intentionally deferred.</p></section>
+      {notice && <div className="success-notice" role="status">{notice}</div>}
+      {pageContent}
     </main>
   </div>
 }
 
-export function App() {
+export function App({ api = workflowApi }: { api?: WorkflowApi }) {
   const { status, error, demoModeAvailable, refreshCurrentUser } = useAuth()
   if (status === 'loading') return <main className="state-page" aria-live="polite"><div className="spinner" /><h1>Confirming your identity…</h1></main>
-  if (status === 'authenticated') return <AuthenticatedShell />
+  if (status === 'authenticated') return <AuthenticatedShell api={api} />
   return <main className="state-page">
     {demoModeAvailable && <DemoAuthControl onSwitched={() => undefined} />}
     <section className="card state-card"><p className="eyebrow">PAS AI QUEST</p><h1>{status === 'unauthenticated' ? 'You are not signed in' : 'We could not confirm your identity'}</h1><p>{error ?? 'Use the approved authentication method to continue. Development users can choose a synthetic demo identity above.'}</p>{status === 'error' && <button className="button" type="button" onClick={() => void refreshCurrentUser().catch(() => undefined)}>Try again</button>}</section>

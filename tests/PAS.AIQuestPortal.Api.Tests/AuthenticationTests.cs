@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using PAS.AIQuestPortal.Api.Authentication;
 using PAS.AIQuestPortal.Api.Configuration;
+using PAS.AIQuestPortal.Api.Workflow;
 using Xunit;
 
 namespace PAS.AIQuestPortal.Api.Tests;
@@ -26,11 +27,13 @@ public sealed class AuthenticationTests : IAsyncLifetime
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(DemoConfiguration());
         builder.AddQuestAuthentication();
+        builder.Services.AddSubmissionWorkflow();
         builder.Services.RemoveAll<IQuestIdentityResolver>();
         builder.Services.AddScoped<IQuestIdentityResolver, FakeIdentityResolver>();
         _app = builder.Build();
         _app.UseAuthentication(); _app.UseAuthorization();
         _app.MapQuestAuthenticationEndpoints();
+        _app.MapSubmissionWorkflow();
         _app.MapGet("/test/participant", (IQuestCurrentUser user) => Results.Ok(user.Identity.ParticipantId)).RequireAuthorization(QuestPolicies.Participant);
         _app.MapGet("/test/manager", (IQuestCurrentUser user) => Results.Ok(user.Identity.ParticipantId)).RequireAuthorization(QuestPolicies.Manager);
         await _app.StartAsync();
@@ -66,6 +69,17 @@ public sealed class AuthenticationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, (await _client.GetAsync("/test/manager")).StatusCode);
         string participant = await CreateSessionAsync("participant");
         Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(HttpMethod.Get, "/test/manager", participant)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Workflow_endpoints_enforce_participant_and_manager_policies_before_business_code()
+    {
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.GetAsync("/api/challenges/eligible")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.GetAsync("/api/submissions/review-queue")).StatusCode);
+        string participant = await CreateSessionAsync("participant");
+        Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(HttpMethod.Get, "/api/submissions/review-queue", participant)).StatusCode);
+        string manager = await CreateSessionAsync("manager");
+        Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(HttpMethod.Get, "/api/challenges/eligible", manager)).StatusCode);
     }
 
     [Fact]

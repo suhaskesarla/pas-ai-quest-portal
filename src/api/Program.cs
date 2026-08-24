@@ -6,6 +6,7 @@ using PAS.AIQuestPortal.Api.Configuration;
 using PAS.AIQuestPortal.Api.Data;
 using PAS.AIQuestPortal.Api.Health;
 using PAS.AIQuestPortal.Api.HistoricalImport;
+using PAS.AIQuestPortal.Api.Workflow;
 
 if (args.Length > 0 && string.Equals(args[0], "historical-import", StringComparison.OrdinalIgnoreCase))
 {
@@ -21,6 +22,7 @@ builder.Services
     .ValidateOnStart();
 
 builder.AddQuestAuthentication();
+builder.Services.AddSubmissionWorkflow();
 
 builder.Services.AddCors(options =>
 {
@@ -60,6 +62,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
     Predicate = check => check.Tags.Contains("ready")
 });
 app.MapQuestAuthenticationEndpoints();
+app.MapSubmissionWorkflow();
 
 app.Run();
 return 0;
