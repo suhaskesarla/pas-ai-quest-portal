@@ -1,0 +1,76 @@
+import { expect, test } from '@playwright/test'
+import { captureEvidence } from './evidence'
+
+test('clean Docker Compose bootstrap supports the complete Step 6 showcase', async ({ page, request }) => {
+  await page.goto('/')
+  await expect(page.getByText('DEVELOPMENT ONLY')).toBeVisible()
+  await captureEvidence(page, 'docker-showcase', '01-login.png')
+
+  const profiles = await request.get('/api/auth/demo/profiles')
+  expect(profiles.status()).toBe(200)
+  expect(await profiles.json()).toEqual(expect.arrayContaining([
+    expect.objectContaining({ key: 'participant' }),
+    expect.objectContaining({ key: 'manager' }),
+  ]))
+  const me = await request.get('/api/auth/me')
+  expect(me.status()).toBe(200)
+
+  const identity = page.getByRole('combobox', { name: 'Demo identity' })
+  await identity.selectOption('participant')
+  await expect(page.getByRole('heading', { name: 'Welcome, Synthetic Participant' })).toBeVisible()
+  const initialMine = await page.request.get('/api/submissions/mine')
+  expect(initialMine.status()).toBe(200)
+  expect(await initialMine.json()).toEqual([])
+  const eligible = await page.request.get('/api/challenges/eligible')
+  expect(eligible.status()).toBe(200)
+  const challenges = await eligible.json()
+  expect(challenges).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Synthetic Shared Challenge' })]))
+
+  await page.getByRole('button', { name: 'Challenges' }).click()
+  await expect(page.getByRole('heading', { name: 'Synthetic Shared Challenge' })).toBeVisible()
+  await expect(page.getByText('Complete the synthetic shared task')).toBeVisible()
+  await captureEvidence(page, 'docker-showcase', '02-participant-challenge.png')
+  await page.getByRole('article').getByRole('button', { name: 'Submit work' }).click()
+  await expect(page.getByText('Complete participation: Synthetic Participant, Synthetic Teammate')).toBeVisible()
+  await page.getByRole('textbox', { name: 'Evidence *' }).fill('Initial Docker showcase evidence')
+  await page.getByRole('button', { name: 'Submit for review' }).click()
+  await expect(page.getByText('Submitted', { exact: true }).first()).toBeVisible()
+  await captureEvidence(page, 'docker-showcase', '03-submitted.png')
+
+  await identity.selectOption('manager')
+  await expect(page.getByRole('heading', { name: 'Welcome, Synthetic Manager' })).toBeVisible()
+  await page.getByRole('button', { name: 'Review queue' }).click()
+  await expect(page.getByText('Initial Docker showcase evidence')).toBeVisible()
+  await captureEvidence(page, 'docker-showcase', '04-manager-review.png')
+  await page.getByLabel('Manager comment').fill('Please update the Docker showcase evidence.')
+  await page.getByRole('button', { name: 'Needs evidence' }).click()
+
+  await identity.selectOption('participant')
+  await expect(page.getByRole('heading', { name: 'Welcome, Synthetic Participant' })).toBeVisible()
+  await page.getByRole('button', { name: 'My activity' }).click()
+  const history = page.getByLabel('Submission history')
+  await expect(history).toContainText('Needs evidence')
+  await expect(history).toContainText('Please update the Docker showcase evidence.')
+  await captureEvidence(page, 'docker-showcase', '05-needs-evidence.png')
+  await page.getByRole('textbox', { name: 'Evidence *' }).fill('Replacement Docker showcase evidence')
+  await page.getByLabel('Response to manager').fill('Updated through the production runtime path.')
+  await page.getByRole('button', { name: 'Resubmit shared submission' }).click()
+  await expect(page.getByText('Replacement Docker showcase evidence')).toBeVisible()
+  await captureEvidence(page, 'docker-showcase', '06-resubmitted.png')
+
+  await identity.selectOption('manager')
+  await expect(page.getByRole('heading', { name: 'Welcome, Synthetic Manager' })).toBeVisible()
+  await page.getByRole('button', { name: 'Review queue' }).click()
+  page.once('dialog', dialog => void dialog.accept())
+  await page.getByRole('button', { name: 'Approve all 2' }).click()
+  await expect(page.getByText('All caught up—nothing is waiting for review.')).toBeVisible()
+  await captureEvidence(page, 'docker-showcase', '07-approved.png')
+
+  await identity.selectOption('participant')
+  await expect(page.getByRole('heading', { name: 'Welcome, Synthetic Participant' })).toBeVisible()
+  await page.getByRole('button', { name: 'My activity' }).click()
+  await expect(page.getByText('Approved', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('Awarded task result: 25 XP')).toBeVisible()
+  await expect(page.getByLabel('Submission history')).toContainText('Approved')
+  await captureEvidence(page, 'docker-showcase', '08-participant-result.png')
+})

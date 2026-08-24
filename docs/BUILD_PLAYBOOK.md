@@ -101,6 +101,8 @@ Rebuild the screens using `prototype/pas-quest-portal.jsx` as the UX/visual refe
 
 > "Using `prototype/pas-quest-portal.jsx` as the visual/UX reference and `docs/PORTAL_SPEC.md` §16 for the full screen list, rebuild [screen name] against the real API and auth from Steps 2–5. Keep the visual design system from the **Visual Design System** section of `docs/PORTAL_SPEC.md` (currently §19) — it's already approved; don't redesign it."
 
+**Final showcase acceptance retro:** Vite Playwright remains the fast feedback loop, but it is not the final runtime gate. Before accepting a showcase step, QA must run the production-built web image through the real Docker Compose stack from clean volumes (`docker compose down -v`, then `docker compose up --build -d`). The browser journey must use `http://localhost:5173`, traverse nginx to the API, rely only on normal deterministic Development/Demo bootstrap data, and produce timestamped synthetic screenshots plus a run summary under ignored `tests/reports/` output. Do not load an E2E SQL fixture for this clean-start showcase check. Run this slower gate for final acceptance and whenever nginx, Docker, Compose, auth/runtime configuration, demo bootstrap, or cross-service integration changes.
+
 ### Step 7 — Secure file storage
 
 > "Replace any local file handling with uploads to Azure Blob Storage (Azurite locally), per spec §13: private blob references only, never permanent public URLs. Issue access via short-lived user-delegation SAS. Add file size limits and MIME/type validation. Check `docs/DECISIONS.md` for `POLICY_PENDING — Evidence retention`; do not invent or hardcode a retention period. Keep retention configurable and do not enable destructive automatic deletion until that policy is resolved."

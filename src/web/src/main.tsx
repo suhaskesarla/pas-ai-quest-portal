@@ -4,7 +4,7 @@ import { App } from './App'
 import { AuthProvider } from './auth/AuthContext'
 import './styles.css'
 
-const demoModeAvailable = import.meta.env.DEV && import.meta.env.VITE_DEMO_AUTH_ENABLED === 'true'
+const demoModeAvailable = import.meta.env.VITE_DEMO_AUTH_ENABLED === 'true'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

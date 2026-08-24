@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { captureEvidence } from './evidence'
 
 test('Step 6 shared submission proceeds through NeedsEvidence, resubmission and atomic approval', async ({ page }) => {
   await page.goto('/')
@@ -7,6 +8,7 @@ test('Step 6 shared submission proceeds through NeedsEvidence, resubmission and 
   await identity.selectOption('participant')
   await page.getByRole('button', { name: 'Challenges' }).click()
   await expect(page.getByRole('heading', { name: 'Synthetic shared quest' })).toBeVisible()
+  await captureEvidence(page, 'step6', '01-participant-challenge.png')
   await expect(page.getByText('Your effective deadline', { exact: true })).toBeVisible()
   await page.getByRole('article').getByRole('button', { name: 'Submit work' }).click()
   await expect(page.getByText('Complete participation: Synthetic Beneficiary, Synthetic Participant')).toBeVisible()
@@ -14,24 +16,30 @@ test('Step 6 shared submission proceeds through NeedsEvidence, resubmission and 
   await page.getByRole('button', { name: 'Submit for review' }).click()
   await expect(page.getByText('Submitted', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('Initial synthetic shared evidence')).toBeVisible()
+  await captureEvidence(page, 'step6', '02-submitted.png')
 
   await identity.selectOption('manager')
   await page.getByRole('button', { name: 'Review queue' }).click()
   await expect(page.getByText('Synthetic Beneficiary, Synthetic Participant')).toBeVisible()
   await expect(page.getByText('Initial synthetic shared evidence')).toBeVisible()
+  await captureEvidence(page, 'step6', '03-manager-review.png')
   await page.getByLabel('Manager comment').fill('Please replace the shared evidence.')
   await page.getByRole('button', { name: 'Needs evidence' }).click()
   await expect(page.getByText('All caught up—nothing is waiting for review.')).toBeVisible()
+  await captureEvidence(page, 'step6', '04-needs-evidence-requested.png')
 
   await identity.selectOption('participant')
   await page.getByRole('button', { name: 'My activity' }).click()
-  await expect(page.locator('.manager-feedback').getByText('Please replace the shared evidence.')).toBeVisible()
+  const history = page.getByLabel('Submission history')
+  await expect(history).toContainText('Needs evidence')
+  await expect(history).toContainText('Please replace the shared evidence.')
   const evidence = page.getByRole('textbox', { name: 'Evidence *' })
   await evidence.fill('Replacement synthetic shared evidence')
   await page.getByLabel('Response to manager').fill('Updated for the full participation.')
   await page.getByRole('button', { name: 'Resubmit shared submission' }).click()
   await expect(page.getByText('Replacement synthetic shared evidence')).toBeVisible()
   await expect(page.getByText('Initial synthetic shared evidence')).toHaveCount(0)
+  await captureEvidence(page, 'step6', '05-resubmitted.png')
 
   await identity.selectOption('manager')
   await page.getByRole('button', { name: 'Review queue' }).click()
@@ -39,10 +47,12 @@ test('Step 6 shared submission proceeds through NeedsEvidence, resubmission and 
   page.once('dialog', dialog => void dialog.accept())
   await page.getByRole('button', { name: 'Approve all 2' }).click()
   await expect(page.getByText('All caught up—nothing is waiting for review.')).toBeVisible()
+  await captureEvidence(page, 'step6', '06-approved-by-manager.png')
 
   await identity.selectOption('participant')
   await page.getByRole('button', { name: 'My activity' }).click()
   await expect(page.getByText('Approved', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('Awarded task result: 25 XP')).toBeVisible()
   await expect(page.getByText('Replacement synthetic shared evidence')).toBeVisible()
+  await captureEvidence(page, 'step6', '07-participant-result.png')
 })

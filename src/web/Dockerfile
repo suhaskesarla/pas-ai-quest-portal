@@ -1,5 +1,7 @@
 FROM node:24-alpine AS build
 WORKDIR /app
+ARG VITE_DEMO_AUTH_ENABLED=false
+ENV VITE_DEMO_AUTH_ENABLED=${VITE_DEMO_AUTH_ENABLED}
 COPY src/web/package*.json ./
 RUN npm ci
 COPY src/web/ ./

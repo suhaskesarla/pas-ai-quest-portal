@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PAS.AIQuestPortal.Api.Authentication;
 using PAS.AIQuestPortal.Api.Configuration;
 using PAS.AIQuestPortal.Api.Data;
+using PAS.AIQuestPortal.Api.Development;
 using PAS.AIQuestPortal.Api.Health;
 using PAS.AIQuestPortal.Api.HistoricalImport;
 using PAS.AIQuestPortal.Api.Workflow;
@@ -39,6 +40,7 @@ var storageConnectionString = builder.Configuration["Storage:ConnectionString"]
 
 builder.Services.AddSingleton(new BlobServiceClient(storageConnectionString));
 builder.Services.AddDbContext<QuestDbContext>(options => options.UseSqlServer(databaseConnectionString));
+builder.Services.AddScoped<DevelopmentDemoDataSeeder>();
 builder.Services
     .AddHealthChecks()
     .AddSqlServer(databaseConnectionString, name: "sqlserver", tags: ["ready"])
@@ -50,6 +52,7 @@ await using (var scope = app.Services.CreateAsyncScope())
 {
     var database = scope.ServiceProvider.GetRequiredService<QuestDbContext>();
     await database.Database.MigrateAsync();
+    await scope.ServiceProvider.GetRequiredService<DevelopmentDemoDataSeeder>().SeedAsync();
 }
 
 app.UseCors();

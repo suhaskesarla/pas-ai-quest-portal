@@ -574,6 +574,27 @@ tests/
 
 The Tech Lead may adjust this structure without changing the architectural intent.
 
+## Showcase Acceptance Runtime
+
+Fast Playwright runs against the Vite development server are developer-feedback tests. They do not prove the production-built frontend, nginx proxy, Docker Compose configuration, clean database startup, or normal demo bootstrap.
+
+A showcase step is not complete merely because unit tests, API integration tests, Vite Playwright, and Docker image builds pass. Final showcase acceptance requires:
+
+Clean Docker Compose startup
+→ production-built frontend
+→ nginx/API runtime path
+→ deterministic local demo data
+→ real browser journey
+→ timestamped screenshot evidence and run summary.
+
+Run the slower Docker showcase suite for:
+
+- final showcase-step acceptance;
+- nginx, Docker, Compose, authentication, or runtime-configuration changes;
+- demo-bootstrap or cross-service integration changes.
+
+The Docker showcase must start with `docker compose down -v` followed by `docker compose up --build -d`. It must not inject QA SQL fixtures to hide missing normal bootstrap behavior. Generated synthetic screenshots and summaries belong under ignored timestamped folders in `tests/reports/`.
+
 ---
 
 # 10. UI/UX Designer

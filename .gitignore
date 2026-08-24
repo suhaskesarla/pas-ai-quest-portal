@@ -51,3 +51,5 @@ Thumbs.db
 # --- Build artifacts / logs ---
 *.tmp
 *.bak
+/tests/reports/*/
+!/tests/reports/README.md

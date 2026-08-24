@@ -83,13 +83,17 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
     public async Task React_shaped_requests_cover_needs_evidence_resubmission_approval_rejection_and_problem_contract()
     {
         JsonElement created = await CreateSubmission(); string originalVersion = created.GetProperty("version").GetString()!;
-        Assert.Equal(20, created.GetProperty("taskXp").GetInt32());
+        Assert.Equal(25, created.GetProperty("taskXp").GetInt32());
         Assert.False(created.TryGetProperty("taskXP", out _));
         Assert.True(DateTimeOffset.TryParseExact(originalVersion, "O", null, System.Globalization.DateTimeStyles.RoundtripKind, out _));
 
         clock.UtcNow = clock.UtcNow.AddMinutes(1);
         JsonElement needs = await OkJson(await SendJson(HttpMethod.Post, $"/api/submissions/{created.GetProperty("id").GetGuid()}/review", manager, QuestRoles.Manager, new { version = originalVersion, action = "NeedsEvidence", comment = "Replace evidence" }));
         Assert.Equal("NeedsEvidence", needs.GetProperty("status").GetString()); string needsVersion = needs.GetProperty("version").GetString()!;
+        JsonElement mineNeeds = await Mine();
+        Assert.Equal("NeedsEvidence", mineNeeds.GetProperty("status").GetString());
+        Assert.Equal("Replace evidence", mineNeeds.GetProperty("managerComment").GetString());
+        Assert.Equal(new[] { "Submitted", "UnderReview", "NeedsEvidence" }, mineNeeds.GetProperty("history").EnumerateArray().Select(x => x.GetProperty("eventType").GetString()));
 
         using HttpResponseMessage stale = await SendJson(HttpMethod.Put, $"/api/submissions/{created.GetProperty("id").GetGuid()}/resubmission", claimant, QuestRoles.Participant, new { version = originalVersion, evidence = new[] { new { kind = "Text", label = "Evidence", value = "replacement" } }, comment = "updated" });
         Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode); JsonElement problem = await stale.Content.ReadFromJsonAsync<JsonElement>(); Assert.Equal("SubmissionVersionConflict", problem.GetProperty("code").GetString());
@@ -98,10 +102,14 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         JsonElement resubmitted = await OkJson(await SendJson(HttpMethod.Put, $"/api/submissions/{created.GetProperty("id").GetGuid()}/resubmission", claimant, QuestRoles.Participant, new { version = needsVersion, evidence = new[] { new { kind = "Text", label = "Replacement", value = "current evidence only" } }, comment = "updated" }));
         JsonElement evidence = Assert.Single(resubmitted.GetProperty("evidence").EnumerateArray()); Assert.Equal("current evidence only", evidence.GetProperty("value").GetString());
         Assert.Equal(4, resubmitted.GetProperty("history").GetArrayLength());
+        Assert.Equal("Resubmitted", (await Mine()).GetProperty("status").GetString());
 
         clock.UtcNow = clock.UtcNow.AddMonths(1);
         JsonElement approved = await OkJson(await SendJson(HttpMethod.Post, $"/api/submissions/{created.GetProperty("id").GetGuid()}/review", manager, QuestRoles.Manager, new { version = resubmitted.GetProperty("version").GetString(), action = "Approve" }));
         Assert.Equal("Approved", approved.GetProperty("status").GetString());
+        JsonElement mineApproved = await Mine();
+        Assert.Equal("Approved", mineApproved.GetProperty("status").GetString());
+        Assert.Equal(25, mineApproved.GetProperty("taskXp").GetInt32());
 
         clock.UtcNow = new(2026, 8, 12, 10, 0, 0, TimeSpan.Zero); JsonElement second = await CreateSubmission(); clock.UtcNow = clock.UtcNow.AddMinutes(1);
         JsonElement rejected = await OkJson(await SendJson(HttpMethod.Post, $"/api/submissions/{second.GetProperty("id").GetGuid()}/review", manager, QuestRoles.Manager, new { version = second.GetProperty("version").GetString(), action = "Reject", comment = "Not acceptable" }));
@@ -117,6 +125,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
     }
 
     private async Task<JsonElement> CreateSubmission() => await OkJson(await SendJson(HttpMethod.Post, "/api/submissions", claimant, QuestRoles.Participant, new { challengeId = challenge, taskId = task, challengeParticipationId = participation, beneficiaryIds = new[] { claimant, beneficiary }, evidence = new[] { new { kind = "Text", label = "Evidence", value = "initial evidence" } }, comment = "claim" }));
+    private async Task<JsonElement> Mine() => Assert.Single((await OkJson(await Send(HttpMethod.Get, "/api/submissions/mine", claimant, QuestRoles.Participant))).EnumerateArray());
     private async Task<HttpResponseMessage> SendJson(HttpMethod method, string path, Guid id, string role, object body) { using var request = Request(method, path, id, role); request.Content = JsonContent.Create(body); return await client.SendAsync(request); }
     private async Task<HttpResponseMessage> Send(HttpMethod method, string path, Guid id, string role) { using var request = Request(method, path, id, role); return await client.SendAsync(request); }
     private static HttpRequestMessage Request(HttpMethod method, string path, Guid id, string role) { var request = new HttpRequestMessage(method, path); request.Headers.Add("X-Contract-Participant", id.ToString()); request.Headers.Add("X-Contract-Role", role); return request; }
@@ -129,7 +138,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         db.Cycles.Add(new Cycle { Id = cycle, Code = "HTTP-26", Name = "Contract Cycle", Status = CycleStatus.Finalised, StartsAt = now, EndsAt = now.AddMonths(1), CreatedAt = now, CreatedByParticipantId = manager });
         db.CycleParticipants.AddRange(new CycleParticipant { CycleId = cycle, ParticipantId = claimant, Status = CycleParticipantStatus.Active }, new CycleParticipant { CycleId = cycle, ParticipantId = beneficiary, Status = CycleParticipantStatus.Active }, new CycleParticipant { CycleId = cycle, ParticipantId = manager, Status = CycleParticipantStatus.Active });
         db.Challenges.Add(new Challenge { Id = challenge, CycleId = cycle, Name = "Contract Challenge", Description = "HTTP contract", Category = "Build", Status = ChallengeStatus.Open, OpenAt = now, DueAt = now.AddDays(20), CloseAt = now.AddDays(25), CreatedAt = now, CreatedByParticipantId = manager });
-        db.ChallengeTasks.Add(new ChallengeTask { Id = task, ChallengeId = challenge, Name = "Contract Task", XP = 20, EvidenceRequirement = EvidenceRequirement.Text, ScoringMode = ScoringMode.WholeTeam, SortOrder = 1 });
+        db.ChallengeTasks.Add(new ChallengeTask { Id = task, ChallengeId = challenge, Name = "Contract Task", XP = 25, EvidenceRequirement = EvidenceRequirement.Text, ScoringMode = ScoringMode.WholeTeam, SortOrder = 1 });
         db.ChallengeTeamPolicies.Add(new ChallengeTeamPolicy { ChallengeId = challenge, FormationMode = FormationMode.Either, MinMembers = 2, MaxMembers = 4 });
         db.ChallengeParticipations.Add(new ChallengeParticipation { Id = participation, ChallengeId = challenge, CycleId = cycle, CreatedAt = now, CreatedByParticipantId = claimant });
         db.ChallengeParticipationMembers.AddRange(new ChallengeParticipationMember { ChallengeParticipationId = participation, ChallengeId = challenge, CycleId = cycle, ParticipantId = claimant, JoinedSnapshotAt = now }, new ChallengeParticipationMember { ChallengeParticipationId = participation, ChallengeId = challenge, CycleId = cycle, ParticipantId = beneficiary, JoinedSnapshotAt = now });

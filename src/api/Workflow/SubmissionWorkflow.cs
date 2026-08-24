@@ -215,7 +215,8 @@ public sealed class SubmissionWorkflowService(QuestDbContext db, IQuestCurrentUs
         EvidenceItem[] evidence = (await db.SubmissionEvidence.AsNoTracking().Where(x => x.SubmissionId == s.Id).OrderBy(x => x.CreatedAt).ToListAsync(ct)).Select(ToItem).ToArray();
         var events = await db.SubmissionEvents.AsNoTracking().Where(x => x.SubmissionId == s.Id).Join(db.Participants, e => e.ActorId, p => p.Id, (e, p) => new { e.ToStatus, e.EventType, e.Comment, p.DisplayName, e.OccurredAt }).ToArrayAsync(ct);
         SubmissionHistoryView[] history = events.Select(x => new SubmissionHistoryView(x.ToStatus ?? Enum.Parse<SubmissionStatus>(x.EventType), x.Comment, x.DisplayName, x.OccurredAt)).OrderBy(x => x.OccurredAt).ThenBy(x => EventOrder(x.EventType)).ToArray();
-        return new(s.Id, Version(s), s.Status, claimant, beneficiaries, challenge.Id, challenge.Name, task.Id, task.Name, task.XP, evidence, s.Comment, s.ReviewerComment, s.SubmittedAt, s.LastUpdatedAt, history);
+        Submission current = await db.Submissions.AsNoTracking().SingleAsync(x => x.Id == s.Id, ct);
+        return new(current.Id, Version(current), current.Status, claimant, beneficiaries, challenge.Id, challenge.Name, task.Id, task.Name, task.XP, evidence, current.Comment, current.ReviewerComment, current.SubmittedAt, current.LastUpdatedAt, history);
     }
 
     private async Task<Submission> Find(Guid id, CancellationToken ct) => await db.Submissions.SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw NotFound("SubmissionNotFound", "Submission was not found.");
