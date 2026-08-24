@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using PAS.AIQuestPortal.Api.HistoricalImport.Control;
 
 namespace PAS.AIQuestPortal.Api.Data;
 
@@ -27,6 +28,11 @@ public sealed class QuestDbContext(DbContextOptions<QuestDbContext> options) : D
     public DbSet<RaidEntitlement> RaidEntitlements => Set<RaidEntitlement>();
     public DbSet<RaidParticipation> RaidParticipations => Set<RaidParticipation>();
     public DbSet<XPEntry> XPEntries => Set<XPEntry>();
+    public DbSet<HistoricalImportDataset> HistoricalImportDatasets => Set<HistoricalImportDataset>();
+    public DbSet<HistoricalImportRun> HistoricalImportRuns => Set<HistoricalImportRun>();
+    public DbSet<HistoricalImportSourceRow> HistoricalImportSourceRows => Set<HistoricalImportSourceRow>();
+    public DbSet<HistoricalImportArtifact> HistoricalImportArtifacts => Set<HistoricalImportArtifact>();
+    public DbSet<HistoricalImportObservation> HistoricalImportObservations => Set<HistoricalImportObservation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

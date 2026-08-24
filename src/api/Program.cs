@@ -6,6 +6,12 @@ using PAS.AIQuestPortal.Api.Authentication;
 using PAS.AIQuestPortal.Api.Configuration;
 using PAS.AIQuestPortal.Api.Data;
 using PAS.AIQuestPortal.Api.Health;
+using PAS.AIQuestPortal.Api.HistoricalImport;
+
+if (args.Length > 0 && string.Equals(args[0], "historical-import", StringComparison.OrdinalIgnoreCase))
+{
+    return await HistoricalImportCommand.RunAsync(args[1..]);
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -81,5 +87,6 @@ app.MapGet("/api/whoami", (System.Security.Claims.ClaimsPrincipal user) => new
     .RequireAuthorization();
 
 app.Run();
+return 0;
 
 public partial class Program;

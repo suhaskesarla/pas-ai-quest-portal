@@ -1,0 +1,61 @@
+{
+  "datasetKey": "synthetic-july-august-v1",
+  "headerFidelity": "Known frozen-analysis headers retained in approved order; exact full-sequence comparison remains pending local-source-evidence.",
+  "participantMap": "participant-map.csv",
+  "raidUsageEvidence": "raid-usage-evidence.csv",
+  "importRecordedAt": "2026-08-23T12:00:00+10:00",
+  "manager": { "sourceKey": "synthetic-manager", "sourceName": "Synthetic Manager", "participantId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "displayName": "Synthetic Manager" },
+  "cycles": [
+    { "key": "july", "code": "SYN-2026-07", "name": "Synthetic July", "startsAt": "2026-07-01T00:00:00+10:00", "endsAt": "2026-07-31T23:59:59+10:00" },
+    { "key": "august", "code": "SYN-2026-08", "name": "Synthetic August", "startsAt": "2026-08-01T00:00:00+10:00", "endsAt": "2026-08-31T23:59:59+10:00" }
+  ],
+  "challenges": [
+    { "key": "go-pass-3", "cycleKey": "july", "name": "Go Pass 3", "description": "Synthetic historical challenge", "category": "Go Pass", "openAt": "2026-07-10T09:00:00+10:00", "dueAt": "2026-08-21T17:00:00+10:00", "closeAt": "2026-08-22T17:00:00+10:00" },
+    { "key": "august-challenge", "cycleKey": "august", "name": "Synthetic August Challenge", "description": "Synthetic August historical challenge", "category": "August Quest", "openAt": "2026-08-01T09:00:00+10:00", "dueAt": "2026-08-28T17:00:00+10:00", "closeAt": "2026-08-31T17:00:00+10:00" }
+  ],
+  "tasks": [
+    { "key": "go-pass-3-score", "challengeKey": "go-pass-3", "cycleKey": "july", "name": "Go Pass 3 historical score", "xp": 10, "sortOrder": 1 },
+    { "key": "august-task-1", "challengeKey": "august-challenge", "cycleKey": "august", "name": "August Task 1", "xp": 15, "sortOrder": 1 }
+  ],
+  "awardCategories": [
+    { "key": "early-bird", "cycleKey": "july", "code": "SYN_EARLY_BIRD", "name": "Early Bird" },
+    { "key": "buddy-enrolment", "cycleKey": "july", "code": "SYN_BUDDY_ENROLMENT", "name": "Buddy Enrolment" },
+    { "key": "funny-bonus-1", "cycleKey": "july", "code": "SYN_FUNNY_BONUS_1", "name": "Funny Bonus 1" },
+    { "key": "august-spotlight", "cycleKey": "august", "code": "SYN_AUGUST_SPOTLIGHT", "name": "August Spotlight Bonus" }
+  ],
+  "raidSessions": [
+    { "key": "july-raid-1", "cycleKey": "july", "name": "Raid 1", "occurredAt": "2026-07-18T12:00:00+10:00", "evidenceKey": "synthetic-raid-session-001" },
+    { "key": "august-physical-raid", "cycleKey": "august", "name": "Synthetic August Physical Raid", "occurredAt": "2026-08-12T10:00:00+10:00", "evidenceKey": "synthetic-raid-session-002" },
+    { "key": "august-remote-raid", "cycleKey": "august", "name": "Synthetic August Remote Raid", "occurredAt": "2026-08-19T14:00:00+10:00", "evidenceKey": "synthetic-raid-session-003" }
+  ],
+  "sheets": [
+    {
+      "fileKey": "july-scoresheet", "path": "july-scoresheet.csv", "cycleKey": "july",
+      "expectedHeaders": ["Participant", "Go Pass 3", "Early Bird", "Buddy Enrolment", "Raid 1", "Funny Bonus 1", "July Total"],
+      "columns": [
+        { "header": "Participant", "kind": "Participant" },
+        { "header": "Go Pass 3", "kind": "TaskApproval", "mappingKey": "go-pass-3-score", "submittedAt": "2026-08-14T16:00:00+10:00", "submittedAtEvidence": "synthetic-teams-submission-001", "awardedAt": "2026-08-15T10:30:00+10:00", "awardedAtEvidence": "synthetic-teams-approval-001" },
+        { "header": "Early Bird", "kind": "ManualAward", "mappingKey": "early-bird", "awardedAt": "2026-07-03T09:00:00+10:00", "awardedAtEvidence": "synthetic-award-record-001" },
+        { "header": "Buddy Enrolment", "kind": "ManualAward", "mappingKey": "buddy-enrolment", "awardedAt": "2026-07-05T09:00:00+10:00", "awardedAtEvidence": "synthetic-award-record-002" },
+        { "header": "Raid 1", "kind": "RaidXp", "mappingKey": "july-raid-1", "awardedAt": "2026-07-18T12:30:00+10:00", "awardedAtEvidence": "synthetic-raid-award-001" },
+        { "header": "Funny Bonus 1", "kind": "ManualAward", "mappingKey": "funny-bonus-1", "awardedAt": "2026-07-22T15:00:00+10:00", "awardedAtEvidence": "synthetic-award-record-003" },
+        { "header": "July Total", "kind": "Total" }
+      ]
+    },
+    {
+      "fileKey": "august-scoresheet", "path": "august-scoresheet.csv", "cycleKey": "august",
+      "expectedHeaders": ["Participant", "August Task 1", "August Spotlight Bonus", "August Raid XP", "Physical Raid Pass Assigned", "Physical Raid Pass Used", "Remote Raid Pass Assigned", "Remote Raid Pass Used", "August Total"],
+      "columns": [
+        { "header": "Participant", "kind": "Participant" },
+        { "header": "August Task 1", "kind": "TaskApproval", "mappingKey": "august-task-1", "submittedAt": "2026-08-10T16:00:00+10:00", "submittedAtEvidence": "synthetic-teams-submission-002", "awardedAt": "2026-08-11T10:30:00+10:00", "awardedAtEvidence": "synthetic-teams-approval-002" },
+        { "header": "August Spotlight Bonus", "kind": "ManualAward", "mappingKey": "august-spotlight", "awardedAt": "2026-08-13T09:00:00+10:00", "awardedAtEvidence": "synthetic-award-record-004" },
+        { "header": "August Raid XP", "kind": "RaidXp", "mappingKey": "august-physical-raid", "awardedAt": "2026-08-12T10:30:00+10:00", "awardedAtEvidence": "synthetic-raid-award-002" },
+        { "header": "Physical Raid Pass Assigned", "kind": "RaidAssigned", "passType": "Physical" },
+        { "header": "Physical Raid Pass Used", "kind": "RaidUsed", "passType": "Physical" },
+        { "header": "Remote Raid Pass Assigned", "kind": "RaidAssigned", "passType": "Remote" },
+        { "header": "Remote Raid Pass Used", "kind": "RaidUsed", "passType": "Remote" },
+        { "header": "August Total", "kind": "Total" }
+      ]
+    }
+  ]
+}

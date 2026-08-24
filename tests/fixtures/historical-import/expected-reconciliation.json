@@ -1,0 +1,11 @@
+{
+  "july": { "synthetic-avery": 43, "synthetic-blake": 47, "synthetic-casey": 0, "total": 90 },
+  "august": { "synthetic-avery": 30, "synthetic-blake": 34, "synthetic-casey": 0, "total": 64 },
+  "sourceSubtotals": {
+    "july": { "task": 20, "manual": 50, "raid": 20 },
+    "august": { "task": 30, "manual": 12, "raid": 22 }
+  },
+  "raidPassColumnsContributeXp": 0,
+  "julyGoPass3AwardedAt": "2026-08-15T10:30:00+10:00",
+  "julyGoPass3ReportingCycle": "july"
+}
