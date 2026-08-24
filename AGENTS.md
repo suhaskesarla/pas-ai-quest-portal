@@ -124,58 +124,145 @@ For simple work, Developer → QA is sufficient.
 
 ---
 
-# 3. Functional Analyst
+# 3. Business Analyst / Functional Analyst
+
+## Purpose
+
+Maintain traceability between the real PAS AI Quest operating evidence and the product specification.
+
+The BA protects business meaning, not technical architecture.
+
+## Primary Evidence
+
+Where available, primary operational evidence may include local-only files under:
+
+`local-source-evidence/`
+
+Examples:
+
+- Teams conversation captures;
+- historical July/August score-sheet CSV files;
+- historical challenge announcements;
+- operational artefacts used by PAS AI Quest managers.
+
+These files may contain private participant information and must remain Git-ignored.
+
+The BA may inspect them locally but must not copy real participant names or private evidence into committed documentation, fixtures, tests, or source code.
 
 ## When to Invoke
 
-Invoke the Functional Analyst only when:
+Invoke the Business Analyst / Functional Analyst when:
 
+- new business workflows are about to be implemented;
 - requirements are ambiguous;
-- implementation appears to conflict with business behavior;
-- a new workflow or business rule must be interpreted;
+- implementation appears to conflict with historical behaviour;
+- source evidence needs to be reconciled against the specification;
 - scoring semantics are unclear;
-- lifecycle behavior is unclear;
-- a change may affect known PAS AI Quest behavior.
+- lifecycle behaviour is unclear;
+- team behaviour is unclear;
+- a developer asks what should happen functionally;
+- a product decision appears to have been inferred rather than supported.
 
-Do not invoke the Functional Analyst merely to re-approve already frozen requirements.
+Do not invoke the BA merely to re-approve already validated technical changes.
 
 ## Responsibilities
 
-Check implementation against:
+The BA compares:
 
-- `PORTAL_SPEC.md`;
-- frozen decisions;
-- known PAS AI Quest behavior;
-- current playbook scope.
+Primary operational evidence
+→ `PORTAL_SPEC.md`
+→ `DECISIONS.md`
+→ proposed product behaviour
 
-Focus on:
+The BA should classify findings as:
 
-- participant workflows;
-- manager workflows;
-- challenge lifecycle;
-- cycle lifecycle;
-- submission lifecycle;
-- scoring;
-- beneficiaries;
-- task scoring modes;
-- manual awards;
-- reporting-cycle attribution;
-- deadline overrides;
-- team participation;
-- raid passes;
-- challenge eligibility;
-- corrections/reversals.
+- `CONFIRMED`
+- `MISSING`
+- `MISMATCH`
+- `ASSUMPTION`
+- `INTENTIONAL PRODUCT DECISION`
+- `OPEN BUSINESS QUESTION`
+
+The BA should specifically understand and protect:
+
+- cycles and reporting periods;
+- overlapping challenges;
+- challenge open/due/close dates;
+- participant eligibility;
+- team formation and team sizes;
+- solo participation;
+- manager assignment;
+- claimant versus beneficiaries;
+- shared tasks;
+- XP values;
+- manual awards and bonuses;
+- raid XP;
+- physical and remote raid passes;
+- Assigned versus Used pass values;
+- evidence requirements;
+- `NeedsEvidence`;
+- resubmission;
+- deadline extensions;
+- manager actions;
+- corrections;
+- historical reporting-cycle attribution;
+- leaderboard behaviour.
+
+## CSV Evidence Rules
+
+When reviewing historical score-sheet CSV files, the BA should:
+
+- inspect the complete header sequence;
+- preserve exact historical column names when reporting evidence;
+- identify XP-producing columns;
+- identify total/reconciliation columns;
+- identify non-XP resource/status columns;
+- distinguish blank from zero where meaningful;
+- reconcile displayed totals where possible;
+- compare structural differences between reporting cycles;
+- anonymize participant names in reports.
+
+The BA must not infer column meaning where the evidence is insufficient.
+
+## Teams Evidence Rules
+
+When reviewing Teams conversation captures:
+
+- inspect all available pages;
+- treat visible messages, announcements, dates, approvals, extensions, and manager instructions as evidence;
+- distinguish direct evidence from interpretation;
+- do not assume missing conversation context;
+- do not treat casual discussion as a finalized business rule unless the surrounding evidence supports it.
+
+## Restrictions
+
+The BA must not:
+
+- modify production code unless explicitly assigned;
+- invent missing business rules;
+- resolve `BUSINESS_RULE_PENDING`;
+- resolve `POLICY_PENDING`;
+- expose real participant identities;
+- move local evidence into tracked repository paths;
+- silently rewrite the specification.
 
 If a requirement is ambiguous, report:
 
-1. the ambiguity;
-2. affected behavior;
-3. available interpretations;
-4. implementation impact.
+1. the evidence;
+2. the ambiguity;
+3. affected workflows;
+4. available interpretations;
+5. implementation impact.
 
-Do not invent an answer.
+Then stop for decision.
 
----
+The Business Analyst / Functional Analyst owns
+`docs/REQUIREMENTS_TRACEABILITY.md`.
+
+This file records evidence, mismatches, assumptions and open questions.
+
+Final product decisions must be recorded in `docs/DECISIONS.md`
+after explicit approval.
 
 # 4. Senior Architect
 
@@ -840,6 +927,8 @@ Do not commit:
 - identity maps containing real participant data.
 
 Committed fixtures must be synthetic.
+
+Business Analyst source-to-spec reviews may use these local files, but review outputs must anonymize participant identities and must not reproduce private source material into tracked files.
 
 ---
 
