@@ -9,6 +9,8 @@ appsettings.Local.json
 appsettings.*.Local.json
 /evidence/
 /local-secrets/
+# Generated renders derived from private Teams evidence
+/tmp/pdfs/teams*/
 
 # --- Node / React frontend ---
 node_modules/

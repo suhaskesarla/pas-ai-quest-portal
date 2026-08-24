@@ -1,5 +1,4 @@
 using Azure.Storage.Blobs;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using PAS.AIQuestPortal.Api.Authentication;
@@ -16,30 +15,12 @@ if (args.Length > 0 && string.Equals(args[0], "historical-import", StringCompari
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
-    .AddOptions<QuestAuthenticationOptions>()
-    .Bind(builder.Configuration.GetSection(QuestAuthenticationOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-
-builder.Services
     .AddOptions<StorageOptions>()
     .Bind(builder.Configuration.GetSection(StorageOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-var authenticationMode = builder.Configuration[$"{QuestAuthenticationOptions.SectionName}:Mode"];
-if (!string.Equals(authenticationMode, AuthenticationModes.Stub, StringComparison.OrdinalIgnoreCase))
-{
-    throw new InvalidOperationException(
-        "Step 2 supports Authentication:Mode=Stub only. Entra authentication is intentionally deferred to Step 5.");
-}
-
-builder.Services
-    .AddAuthentication(StubAuthenticationHandler.SchemeName)
-    .AddScheme<AuthenticationSchemeOptions, StubAuthenticationHandler>(
-        StubAuthenticationHandler.SchemeName,
-        _ => { });
-builder.Services.AddAuthorization();
+builder.AddQuestAuthentication();
 
 builder.Services.AddCors(options =>
 {
@@ -78,13 +59,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("ready")
 });
-app.MapGet("/api/whoami", (System.Security.Claims.ClaimsPrincipal user) => new
-    {
-        subject = user.FindFirst("sub")?.Value,
-        name = user.Identity?.Name,
-        roles = user.FindAll(System.Security.Claims.ClaimTypes.Role).Select(claim => claim.Value)
-    })
-    .RequireAuthorization();
+app.MapQuestAuthenticationEndpoints();
 
 app.Run();
 return 0;

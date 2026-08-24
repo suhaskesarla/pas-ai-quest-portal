@@ -1,37 +1,15 @@
-import { StrictMode, useEffect, useState } from 'react'
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { App } from './App'
+import { AuthProvider } from './auth/AuthContext'
 import './styles.css'
 
-type HealthState = 'checking' | 'healthy' | 'unavailable'
-
-function App() {
-  const [health, setHealth] = useState<HealthState>('checking')
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((response) => {
-        if (!response.ok) throw new Error(`Health check failed: ${response.status}`)
-        setHealth('healthy')
-      })
-      .catch(() => setHealth('unavailable'))
-  }, [])
-
-  return (
-    <main>
-      <section className="card">
-        <p className="eyebrow">PAS AI QUEST</p>
-        <h1>Local development environment</h1>
-        <p>Solution scaffolding is ready. Domain workflows begin in later playbook steps.</p>
-        <p className={`status status--${health}`}>
-          API: {health === 'checking' ? 'checking…' : health}
-        </p>
-      </section>
-    </main>
-  )
-}
+const demoModeAvailable = import.meta.env.DEV && import.meta.env.VITE_DEMO_AUTH_ENABLED === 'true'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <AuthProvider demoModeAvailable={demoModeAvailable}>
+      <App />
+    </AuthProvider>
   </StrictMode>,
 )

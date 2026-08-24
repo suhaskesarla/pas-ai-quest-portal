@@ -38,11 +38,7 @@ services:
       ConnectionStrings__QuestDatabase: Server=sqlserver,1433;Database=PasAiQuest;User Id=sa;Password=${SQL_SERVER_PASSWORD};TrustServerCertificate=True
       Storage__BlobServiceUri: http://azurite:10000/devstoreaccount1
       Storage__ConnectionString: UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://azurite
-      Authentication__Mode: Stub
-      Authentication__Stub__Subject: ${STUB_AUTH_SUBJECT:-local-developer}
-      Authentication__Stub__DisplayName: ${STUB_AUTH_NAME:-Local Developer}
-      Authentication__Stub__Roles__0: Quest.Participant
-      Authentication__Stub__Roles__1: Quest.Manager
+      Authentication__Mode: Demo
     ports:
       - "8080:8080"
     depends_on:
