@@ -102,9 +102,18 @@ function SubmissionCard({ submission, children }: { submission: SubmissionView; 
   return <article className="workflow-card"><div className="workflow-card__header"><div><h3>{submission.taskName}</h3><p>{submission.challengeName} · submitted {formatDate(submission.submittedAt)}</p></div><StatusBadge status={submission.status} /></div>
     <p><strong>Claimant:</strong> {submission.claimant.displayName}</p><p><strong>Beneficiaries:</strong> {submission.beneficiaries.map((person) => person.displayName).join(', ')}</p>
     {submission.beneficiaries.length > 1 && <p className="shared-note">Shared all-or-nothing review: this status applies to every beneficiary.</p>}
+    {submission.status === 'Approved' && <div className="approval-result"><strong>Awarded task result: {submission.taskXp} XP</strong><span>{submission.beneficiaries.length > 1 ? `The approved shared submission covers all ${submission.beneficiaries.length} beneficiaries: ${submission.beneficiaries.map((person) => person.displayName).join(', ')}.` : `Approved for ${submission.beneficiaries[0]?.displayName}.`}</span></div>}
     {submission.managerComment && <div className="manager-feedback"><strong>Manager feedback</strong><span>{submission.managerComment}</span></div>}
-    <EvidenceList evidence={submission.evidence} />{children}
+    <EvidenceList evidence={submission.evidence} />
+    <SubmissionHistory history={submission.history} />
+    {children}
   </article>
+}
+
+function SubmissionHistory({ history }: { history: SubmissionView['history'] }) {
+  if (!history.length) return null
+  const chronological = [...history].sort((left, right) => new Date(left.occurredAt).getTime() - new Date(right.occurredAt).getTime())
+  return <section className="submission-history" aria-label="Submission history"><h4>Submission history</h4><ol className="history">{chronological.map((event, index) => <li key={`${event.occurredAt}-${event.eventType}-${index}`}><StatusBadge status={event.eventType} /><div><span>{formatDate(event.occurredAt)} · {event.actorDisplayName}</span>{event.comment && <p>{event.comment}</p>}</div></li>)}</ol></section>
 }
 
 function ResubmitForm({ submission, api, onRefresh }: { submission: SubmissionView; api: WorkflowApi; onRefresh: () => Promise<void> }) {
@@ -138,7 +147,7 @@ function ManagerReview({ submission, api, onRefresh }: { submission: SubmissionV
     <div className="review-people"><p><strong>Claimant</strong><span>{submission.claimant.displayName}</span></p><p><strong>Beneficiaries ({submission.beneficiaries.length})</strong><span>{submission.beneficiaries.map((person) => person.displayName).join(', ')}</span></p></div>
     <div className="shared-outcome"><strong>Approve everyone together</strong><span>Approval awards {submission.taskXp} XP to every beneficiary in one transaction. Partial approval is not available.</span></div>
     <EvidenceList evidence={submission.evidence} />
-    {submission.history.length > 0 && <details><summary>Submission history</summary><ol className="history">{submission.history.map((event, index) => <li key={`${event.occurredAt}-${index}`}><StatusBadge status={event.eventType} /> <span>{formatDate(event.occurredAt)} · {event.actorDisplayName}{event.comment ? ` · ${event.comment}` : ''}</span></li>)}</ol></details>}
+    {submission.history.length > 0 && <details><summary>Submission history</summary><SubmissionHistory history={submission.history} /></details>}
     <label className="field"><span>Manager comment</span><textarea rows={3} value={comment} onChange={(event) => setComment(event.target.value)} /></label>{error && <div className="inline-error" role="alert">{error}</div>}
     <div className="review-actions"><button className="button button--danger-quiet" type="button" disabled={pending} onClick={() => void act('Reject')}>Reject</button><button className="button button--warning" type="button" disabled={pending} onClick={() => void act('NeedsEvidence')}>Needs evidence</button><button className="button button--approve" type="button" disabled={pending} onClick={() => void act('Approve')}>{pending ? 'Updating…' : `Approve all ${submission.beneficiaries.length}`}</button></div>
   </article>

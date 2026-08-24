@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ActivityList, ChallengeList, ReviewQueue, SubmissionForm } from './WorkflowViews'
@@ -95,8 +95,43 @@ describe('participant workflow', () => {
 
   it.each(['NeedsEvidence', 'Approved', 'Rejected'] as SubmissionStatus[])('renders %s status clearly', (status) => {
     render(<ActivityList submissions={[submission(status)]} loading={false} error={null} api={api()} onRefresh={vi.fn()} />)
-    expect(screen.getByText(status === 'NeedsEvidence' ? 'Needs evidence' : status)).toBeInTheDocument()
+      expect(
+        screen.getAllByText(status === 'NeedsEvidence' ? 'Needs evidence' : status).length,
+      ).toBeGreaterThan(0)
     if (status === 'NeedsEvidence') expect(screen.getByText(/Add the supporting link/)).toBeInTheDocument()
+  })
+
+  it('renders API history chronologically with actor and returned comments', () => {
+    const approved = submission('Approved')
+    approved.history = [
+      { eventType: 'Approved', actorDisplayName: 'Morgan Demo Manager', occurredAt: '2026-08-10T03:00:00Z', comment: 'Approved together.' },
+      { eventType: 'Submitted', actorDisplayName: 'Avery Demo Submitter', occurredAt: '2026-08-10T01:00:00Z', comment: 'Initial submission.' },
+      { eventType: 'UnderReview', actorDisplayName: 'Morgan Demo Manager', occurredAt: '2026-08-10T02:00:00Z' },
+    ]
+    render(<ActivityList submissions={[approved]} loading={false} error={null} api={api()} onRefresh={vi.fn()} />)
+    const history = screen.getByRole('region', { name: 'Submission history' })
+    const events = within(history).getAllByRole('listitem')
+    expect(events[0]).toHaveTextContent('Submitted')
+    expect(events[0]).toHaveTextContent('Avery Demo Submitter')
+    expect(events[0]).toHaveTextContent('Initial submission.')
+    expect(events[1]).toHaveTextContent('Under review')
+    expect(events[2]).toHaveTextContent('Approved')
+    expect(events[2]).toHaveTextContent('Morgan Demo Manager')
+    expect(events[2]).toHaveTextContent('Approved together.')
+  })
+
+  it('renders returned manager feedback in My Activity', () => {
+    render(<ActivityList submissions={[submission('NeedsEvidence')]} loading={false} error={null} api={api()} onRefresh={vi.fn()} />)
+    expect(screen.getByText('Manager feedback')).toBeInTheDocument()
+    expect(screen.getByText('Add the supporting link for the whole group.')).toBeInTheDocument()
+  })
+
+  it('shows API-returned task XP and shared result only for Approved submissions', () => {
+    const { rerender } = render(<ActivityList submissions={[submission('Approved')]} loading={false} error={null} api={api()} onRefresh={vi.fn()} />)
+    expect(screen.getByText('Awarded task result: 10 XP')).toBeInTheDocument()
+    expect(screen.getByText(/approved shared submission covers all 2 beneficiaries/)).toBeInTheDocument()
+    rerender(<ActivityList submissions={[submission('UnderReview')]} loading={false} error={null} api={api()} onRefresh={vi.fn()} />)
+    expect(screen.queryByText(/Awarded task result/)).not.toBeInTheDocument()
   })
 
   it('resubmits the existing NeedsEvidence submission and refreshes from API', async () => {

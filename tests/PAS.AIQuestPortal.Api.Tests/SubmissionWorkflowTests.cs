@@ -56,12 +56,37 @@ public sealed class SubmissionWorkflowTests : IAsyncLifetime
         Assert.Equal(2, await db.XPEntries.CountAsync(x => x.SubmissionId == created.Id));
 
         XPEntry grant = await db.XPEntries.SingleAsync(x => x.SubmissionId == created.Id && x.ParticipantId == data.Beneficiary);
+        await AssertCode("CorrectionReasonRequired", () => service.CorrectAsync(grant.Id, new(0, " "), default));
+        Assert.Equal(data.TaskXp, grant.Amount);
         CorrectionView down = await service.CorrectAsync(grant.Id, new(0, "Beneficiary-specific correction"), default);
         Assert.Equal(XPEntryType.Reversal, down.EntryType); Assert.Equal(-data.TaskXp, down.Amount);
         CorrectionView up = await service.CorrectAsync(grant.Id, new(data.TaskXp + 3, "Restored with adjustment"), default);
         Assert.Equal(XPEntryType.Correction, up.EntryType); Assert.Equal(data.TaskXp + 3, grant.Amount + await db.XPEntries.Where(x => x.ReversesEntryId == grant.Id).SumAsync(x => x.Amount));
         Assert.Equal(2, await db.CycleEvents.CountAsync(x => x.EventType == CycleEventType.CorrectionRecorded));
         Assert.Equal(CycleStatus.Finalised, (await db.Cycles.FindAsync(data.Cycle))!.Status);
+    }
+
+    [Fact]
+    public async Task Individual_claimant_selected_subset_and_link_evidence_are_enforced()
+    {
+        SubmissionWorkflowService service = Service();
+        ChallengeTask task = (await db.ChallengeTasks.FindAsync(data.TeamTask))!;
+        task.ScoringMode = ScoringMode.Individual;
+        task.EvidenceRequirement = EvidenceRequirement.Link;
+        await db.SaveChangesAsync();
+
+        var individual = new CreateSubmissionRequest(data.Challenge, data.TeamTask, null, [data.Claimant], [new(EvidenceKind.Link, "Evidence link", "https://example.invalid/synthetic")], null);
+        SubmissionView created = await service.CreateAsync(individual, default);
+        Assert.Equal(data.Claimant, Assert.Single(created.Beneficiaries).ParticipantId);
+        Assert.Equal(EvidenceKind.Link, Assert.Single(created.Evidence).Kind);
+        await AssertCode("InvalidIndividualBeneficiaries", () => service.CreateAsync(individual with { ChallengeParticipationId = data.Participation, BeneficiaryIds = [data.Claimant, data.Beneficiary] }, default));
+
+        task.ScoringMode = ScoringMode.ClaimantSelectsBeneficiaries;
+        task.EvidenceRequirement = EvidenceRequirement.Text;
+        await db.SaveChangesAsync();
+        CreateSubmissionRequest subset = Create(data.TeamTask, [data.Claimant]);
+        Assert.Equal([data.Claimant], (await service.CreateAsync(subset, default)).Beneficiaries.Select(x => x.ParticipantId));
+        await AssertCode("InvalidParticipationBeneficiaries", () => service.CreateAsync(subset with { BeneficiaryIds = [data.Claimant, data.Manager] }, default));
     }
 
     [Fact]

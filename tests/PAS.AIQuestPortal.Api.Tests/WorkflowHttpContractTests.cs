@@ -83,6 +83,8 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
     public async Task React_shaped_requests_cover_needs_evidence_resubmission_approval_rejection_and_problem_contract()
     {
         JsonElement created = await CreateSubmission(); string originalVersion = created.GetProperty("version").GetString()!;
+        Assert.Equal(20, created.GetProperty("taskXp").GetInt32());
+        Assert.False(created.TryGetProperty("taskXP", out _));
         Assert.True(DateTimeOffset.TryParseExact(originalVersion, "O", null, System.Globalization.DateTimeStyles.RoundtripKind, out _));
 
         clock.UtcNow = clock.UtcNow.AddMinutes(1);

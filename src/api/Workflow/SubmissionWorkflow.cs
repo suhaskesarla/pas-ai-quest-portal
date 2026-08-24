@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using PAS.AIQuestPortal.Api.Authentication;
 using PAS.AIQuestPortal.Api.Configuration;
@@ -13,7 +14,7 @@ public sealed record ParticipationOptionView(Guid ParticipationId, IReadOnlyList
 public sealed record TaskView(Guid Id, string Name, int XP, ScoringMode ScoringMode, IReadOnlyList<EvidenceInputView> EvidenceInputs, IReadOnlyList<ParticipationOptionView> Participations);
 public sealed record EligibleChallengeView(Guid Id, string Name, string Description, string Category, ChallengeStatus Status, DateTimeOffset OpenAt, DateTimeOffset DueAt, DateTimeOffset CloseAt, DateTimeOffset EffectiveDeadline, bool IsEligible, string? IneligibilityReason, IReadOnlyList<TaskView> Tasks);
 public sealed record SubmissionHistoryView(SubmissionStatus EventType, string? Comment, string ActorDisplayName, DateTimeOffset OccurredAt);
-public sealed record SubmissionView(Guid Id, string Version, SubmissionStatus Status, PersonView Claimant, IReadOnlyList<PersonView> Beneficiaries, Guid ChallengeId, string ChallengeName, Guid TaskId, string TaskName, int TaskXP, IReadOnlyList<EvidenceItem> Evidence, string? ParticipantComment, string? ManagerComment, DateTimeOffset SubmittedAt, DateTimeOffset LastUpdatedAt, IReadOnlyList<SubmissionHistoryView> History);
+public sealed record SubmissionView(Guid Id, string Version, SubmissionStatus Status, PersonView Claimant, IReadOnlyList<PersonView> Beneficiaries, Guid ChallengeId, string ChallengeName, Guid TaskId, string TaskName, [property: JsonPropertyName("taskXp")] int TaskXP, IReadOnlyList<EvidenceItem> Evidence, string? ParticipantComment, string? ManagerComment, DateTimeOffset SubmittedAt, DateTimeOffset LastUpdatedAt, IReadOnlyList<SubmissionHistoryView> History);
 public sealed record CreateSubmissionRequest(Guid ChallengeId, Guid TaskId, Guid? ChallengeParticipationId, IReadOnlyList<Guid> BeneficiaryIds, IReadOnlyList<EvidenceItem> Evidence, string? Comment);
 public sealed record ResubmitRequest(string Version, IReadOnlyList<EvidenceItem> Evidence, string? Comment);
 public enum ReviewAction { NeedsEvidence, Approve, Reject }

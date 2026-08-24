@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: '.',
-  testMatch: 'auth-smoke.spec.ts',
+  testMatch: ['auth-smoke.spec.ts', 'step6-workflow.spec.ts'],
   fullyParallel: false,
   workers: 1,
   reporter: 'list',
