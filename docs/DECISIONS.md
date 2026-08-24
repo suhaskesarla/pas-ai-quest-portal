@@ -38,7 +38,25 @@ Decision required:
 
 ## Resolved
 
-*(Empty — nothing has been resolved since the freeze yet. When §10 is answered, add an entry below in this format:)*
+### 2026-08-24 — All-or-nothing multi-beneficiary approval (resolves BA-001; amends spec §§4 and 7)
+
+Decided by: User
+
+Decision:
+
+- A multi-beneficiary submission has one overall review outcome and all beneficiaries are reviewed together.
+- If evidence is insufficient for any beneficiary, the entire submission moves to `NeedsEvidence` and no beneficiary receives XP.
+- Resubmission updates the shared submission.
+- Approval creates one TaskApproval XP grant per beneficiary together in one atomic transaction; partial beneficiary approval is not supported.
+- Corrections and reversals after approval remain append-only and may target the affected beneficiary's XP ledger entry where required.
+
+Rationale: Historical evidence shows that partial beneficiary awarding occurred operationally at least once. The portal deliberately treats that occurrence as an operational exception or workaround and does not reproduce it. A single group-submission outcome is an intentional product simplification that provides clearer UX, auditability, idempotency and review behaviour.
+
+Implementation note: `Submission` retains one status; `SubmissionBeneficiary` does not require beneficiary-level review status. The existing one-grant-per-submission-and-beneficiary ledger structure remains appropriate, with all grants created atomically on approval.
+
+---
+
+*(When §10 is answered, add an entry below in this format:)*
 
 ```
 ### YYYY-MM-DD — Team Leaderboard scoring formula (resolves spec §10)

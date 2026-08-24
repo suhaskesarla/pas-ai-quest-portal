@@ -41,9 +41,13 @@ The source files remain local-only under `local-source-evidence/`. They may cont
 
 **Current spec:** Multi-beneficiary approval is all-or-nothing.
 
-**Status:** `OPEN BUSINESS QUESTION`
+**Decision:** The portal deliberately uses one overall review outcome. All beneficiaries are reviewed together; if evidence is insufficient for any beneficiary, the entire submission moves to `NeedsEvidence`. No beneficiary receives XP until approval creates all beneficiary grants atomically. Resubmission updates the shared submission. Post-approval corrections and reversals remain append-only and beneficiary-specific through the XP ledger where required.
 
-**Blocking:** Must be resolved before implementing submission review / beneficiary scoring.
+**Status:** `DECIDED` — Option A, all-or-nothing approval.
+
+**Historical treatment:** The observed partial beneficiary award is treated as an operational exception or workaround. The new portal intentionally does not reproduce it.
+
+**Blocking:** Resolved. BA-001 no longer blocks submission review / beneficiary scoring.
 
 ### Historical Go Pass 3 attribution evidence
 
@@ -85,6 +89,7 @@ The following approved design areas deliberately improve or generalise the histo
 - Durable participant identifiers rather than display names as identity keys.
 - Server-side authorization using Entra app roles.
 - Relational cycle teams, challenge participation, beneficiaries and evidence metadata.
+- One all-or-nothing outcome for multi-beneficiary submissions, intentionally simplifying historical partial-award behaviour.
 - Private evidence storage with authorized, time-limited access rather than public URLs.
 - Configurable award categories represented as data rather than fixed code or permanent spreadsheet columns.
 - Explicit cycle, challenge and submission lifecycles with audit events.
@@ -127,7 +132,7 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 
 | ID | Question | Status | Blocks |
 |----|----------|--------|--------|
-| BA-001 | May a multi-beneficiary submission be approved for only the beneficiaries whose evidence is complete? | `OPEN BUSINESS QUESTION` | Submission review and beneficiary scoring |
+| BA-001 | May a multi-beneficiary submission be approved for only the beneficiaries whose evidence is complete? Decision: no; approval is all-or-nothing. | `DECIDED` | Nothing; decision recorded in `DECISIONS.md` |
 | BA-002 | When is solo participation allowed? | `OPEN BUSINESS QUESTION` | Any challenge that permits or rejects solo participation |
 | BA-003 | How are team leaderboard points aggregated, how are bonuses treated, and how are cross-team points attributed? | `BUSINESS_RULE_PENDING` | Team leaderboard calculation |
 | BA-004 | Does `CycleTeam` represent a stable monthly identity distinct from challenge groups? | `OPEN BUSINESS QUESTION` | Final team-management semantics and related UI |
@@ -143,7 +148,7 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | Area | Gate |
 |------|------|
 | Step 5A authentication | **SAFE TO CONTINUE** |
-| Submission / review / beneficiary scoring | **BLOCKED ON BA-001** |
+| Submission / review / beneficiary scoring | **BA-001 RESOLVED — SAFE TO BEGIN WHEN STEP 6 IS AUTHORISED** |
 | Historical Go Pass 3 expansion/re-import | **BLOCKED ON BA-007** |
 | Team leaderboard | **BLOCKED ON BA-003** |
 | Evidence retention implementation | **BLOCKED ON BA-010** |
