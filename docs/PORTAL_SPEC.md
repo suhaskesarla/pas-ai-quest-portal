@@ -48,6 +48,8 @@ This is deliberately separate from the `XPEntry` ledger (§4) — one records wo
 > Challenge eligibility is evaluated from the challenge's own dates/status plus any participant-specific deadline override — never from `cycle.status === "closed"` or `challenge.cycleId === CURRENT_CYCLE`.
 > A cycle may be finalised for normal participant activity while managers retain audited correction capability. Corrections create new ledger entries (§4) — they never rewrite historical XP in place.
 
+For participant submission and resubmission eligibility, `openAt` is the beginning of participant activity, `dueAt` is the normal deadline, and `closeAt` is the hard participant boundary. After `dueAt`, an applicable participant deadline override must extend the effective deadline. Participant activity beyond normal `closeAt` is allowed only when an explicit participant override also extends the effective close boundary. Managers may continue reviewing, approving, rejecting and performing authorized corrections after `closeAt`. Current calendar month and current-cycle selection never determine eligibility.
+
 **Guide/mascot characters** (Vega, Aria, Lumen, Nova, Master Prompt-Fu) follow the same correction: they attach to a challenge or an announcement, not to one mutually exclusive calendar month. A character transition (like Prompt-Fu → Vega) is itself an in-story event that can overlap a cycle boundary, not a hard switch.
 
 ---
@@ -67,6 +69,7 @@ CycleParticipant
   status: Active | Withdrawn | Inactive
   joinedAt?, leftAt?
 ```
+- **Submission eligibility:** only an Active `CycleParticipant` may create a new submission or be selected as a beneficiary. Withdrawn and Inactive participants cannot participate in new submissions. Later status changes never retroactively alter historical submissions or XP already awarded.
 - This was also an internal inconsistency in v1: the spec's own suggested backend listed "participants/roles," but the build playbook's Step 1 instruction to Codex omitted participants entirely. Fixed in the corrected playbook (see the companion `CODEX_BUILD_PLAYBOOK.md`).
 
 ---
@@ -130,6 +133,8 @@ e.g. `EARLY_BIRD`, `BUDDY_ENROLMENT`, `FRIDAY_FUNNY`, `DAVID_BIRTHDAY` — addab
 
 **XP movements are append-only.** Grants, reversals, and corrections are each written as new `XPEntry` records — existing entries are never mutated in place. This closes the exact audit-trail gap this whole project exists to fix; the v1 prototype's `status = Approved; xp = ...` direct field overwrite would have quietly reintroduced the same weakness under a nicer UI. (Workflow transitions like rejection live in `SubmissionEvent`, §2 — not here.)
 
+**Post-approval correction semantics are explicit.** An authorized manager may correct a beneficiary-specific XP award only with a reason. The original grant remains unchanged and traceable; append-only reversal/correction entries may change effective awarded XP upward, downward or to zero. Finalised reporting cycles remain manager-correctable with audit. Participant users cannot perform corrections. Implementation uses the already-approved `XPEntry` Reversal/Correction architecture without introducing another score-movement path.
+
 **Multi-beneficiary approval writes one `XPEntry` per beneficiary, transactionally.** Approving Bhoomi's group submission (herself + two teammates, 5 XP task) must produce three separate `Grant / TaskApproval` entries — one per beneficiary — all referencing the same `submissionId`, `challengeId`, `taskId`, and participation attribution. Approval either writes every beneficiary's grant or none of them; a partial write (e.g. two grants succeed, one fails) is not a valid end state. Enforce this with an idempotency constraint conceptually equivalent to a unique index on `(submissionId, participantId)` for `TaskApproval` grants, so a retried approval can't double-award the same person. **At implementation time this must be a filtered/conditional uniqueness rule** (`WHERE entryType = Grant AND sourceType = TaskApproval`), not a blanket unique constraint on `(submissionId, participantId)` — a blanket constraint would incorrectly block the legitimate `Reversal`/`Correction` entries that reference the same submission and participant later.
 
 - **Idempotent.** A double-click or retried request on "Approve" must not create a duplicate entry.
@@ -192,6 +197,8 @@ ChallengeParticipationMember
   cycleTeamIdAtParticipation?     — that member's cycle team at the time, if any
 ```
 
+**Solo participation is an explicit per-challenge choice.** `allowSolo = true` permits a one-person `ChallengeParticipation`. `allowSolo = false` requires the configured minimum membership. There is no universal PAS AI Quest solo rule and challenge configuration must not leave this choice implicit.
+
 **Why membership is a relation, not an inline array:** this is a relational database, and the spec already commits (§10) to historical XP attribution staying stable when someone changes teams mid-cycle. An inline `members[]` array can't represent *when* someone joined or left, or answer "who was on this team as of the date this XP was earned" — a proper `CycleTeamMember` table with `joinedAt`/`leftAt` gives clean support for mid-cycle roster changes, "current team" queries, and a reliable source for `cycleTeamIdAtParticipation` in §6 below.
 
 **Why participation is a related table, not a single `cycleTeamId` on the participation record:** a challenge's `ChallengeTeamPolicy` can allow a pairing that isn't anyone's normal cycle team — for instance two people from *different* `CycleTeam`s partnering because that challenge requires pairs. A single `cycleTeamId` field can't represent that (it would force pretending the pairing belongs to one team or the other). With `ChallengeParticipationMember` recording each person's own cycle-team-at-the-time individually, a pair like Suhas (AI-Migos) + Arun (Bulls-AI) is representable without distorting either team's membership. This also means Preety's eventual answer to §10's third open question (which team gets the points when a challenge crosses cycle-team lines) is actually implementable without a further schema migration.
@@ -228,6 +235,8 @@ Submission
 
 **A multi-beneficiary submission has a single, all-or-nothing approval outcome — an intentional product simplification decided explicitly, not a claim that every historical award followed this rule.** Historical evidence shows that partial beneficiary awarding occurred operationally at least once; the portal treats that occurrence as an operational exception or workaround and deliberately does not reproduce it. If one claimant submits for several beneficiaries and evidence is insufficient for any beneficiary, the submission stays `NeedsEvidence` for the whole group and no beneficiary receives XP. Resubmission updates the shared submission. Once fully approved, all beneficiary grants are created together in the atomic transaction defined in §4. Partial beneficiary approval is not supported. `beneficiaries[]` therefore does not need a per-beneficiary review-status field; one `Submission.status` covers the whole group's outcome. Corrections or reversals after approval remain append-only and may target the affected beneficiary's XP ledger entry where required.
 
+Only Active `CycleParticipant`s may create a new submission or be included in its beneficiaries. Withdrawn and Inactive participants are ineligible for new submissions, without retroactively changing historical records or XP.
+
 A task must declare its scoring mode: **individual / whole-team / claimant-selects-beneficiaries / attendance-based (manager-recorded)**.
 
 ---
@@ -248,7 +257,7 @@ A submission carries zero or more `attachments[]`, zero or more `links[]`, and a
 
 **Directly evidenced.** The chat contains: an individual extension request granted; a global Go Pass 3 extension; a *second* extension to 21 August; revised August dates being reposted; Paul & Saurabh resubmitting/completing their Go Pass 3 entry after Preety asked for "the remaining artifact for all the points." v1 modeled only a single fixed `dueDate` per challenge and Submitted → Approved/Rejected — neither can represent any of the above.
 
-**The correction (right-sized — not a full versioning system on day one):** the `NeedsEvidence → Resubmitted` states already present in §7's submission status list, plus a per-participant deadline override, plus a change history on the challenge's own deadline (who changed it, when). Expand further only if real usage shows it's needed — don't over-build this on the first pass.
+**The correction (right-sized — not a full versioning system on day one):** the `NeedsEvidence → Resubmitted` states already present in §7's submission status list, plus participant-specific deadline history and audited challenge-level date changes. Global extensions update challenge-level dates with audit; individual extensions remain participant-specific. `openAt`, `dueAt`, `closeAt` and override eligibility follow §2. Expand further only if real usage shows it is needed.
 
 ---
 
@@ -289,6 +298,7 @@ The source material establishes that individual XP exists and that group/team su
 - Use **Entra app roles** (e.g. `Quest.Participant`, `Quest.Manager`) rather than raw group-membership claims. Group claims have a documented overage condition once a user belongs to more than 200 groups, where group claims silently stop being present in the token — the kind of thing that works in testing and breaks for one real person later. App roles are Microsoft's preferred, simpler mechanism for this kind of per-app authorization.
 - Step 2 of the build sequence (§15) must explicitly test hitting manager-only endpoints with a participant token and confirming rejection — not merely confirming the UI looks different per role.
 - In the real build, this is a hard requirement (unlike the prototype's harmless self-select "View as" toggle, which only exists to demo both experiences from one login and must not carry forward as a real access-control mechanism).
+- Submission review uses a shared manager queue. Any authorized `Quest.Manager` may review an eligible submission, and `SubmissionEvent.actorId` records the manager who performs each action. The current product does not assign submissions to designated managers.
 
 ---
 

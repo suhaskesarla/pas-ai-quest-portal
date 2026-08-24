@@ -56,6 +56,65 @@ Implementation note: `Submission` retains one status; `SubmissionBeneficiary` do
 
 ---
 
+### 2026-08-24 — Active cycle-participant eligibility (resolves BA-005; amends spec §§3 and 7)
+
+Decided by: User
+
+- Only Active `CycleParticipant`s may create new submissions or be selected as beneficiaries.
+- Withdrawn and Inactive participants cannot participate in new submissions.
+- A later participant-status change does not retroactively alter historical submissions or XP already awarded.
+
+---
+
+### 2026-08-24 — Submission date boundaries and overrides (resolves BA-006; amends spec §§2 and 9)
+
+Decided by: User
+
+- `openAt` controls when participant submission activity may begin.
+- `dueAt` is the normal participant submission/resubmission deadline.
+- After `dueAt`, participant submission/resubmission requires an applicable participant deadline override extending the effective deadline.
+- `closeAt` is the hard participant submission/resubmission boundary.
+- Going beyond normal `closeAt` requires an explicit participant override that also extends the effective close boundary.
+- Managers may continue reviewing, approving, rejecting and performing authorized corrections after `closeAt`.
+- Challenge lifecycle remains independent of reporting-cycle lifecycle; current month/current cycle never determines eligibility.
+- Global challenge extensions are audited challenge-level date changes. Individual extensions remain participant-specific deadline history.
+
+---
+
+### 2026-08-24 — Per-challenge solo participation (resolves BA-002; amends spec §6)
+
+Decided by: User
+
+- `ChallengeTeamPolicy.allowSolo = true` permits a one-person `ChallengeParticipation`.
+- `allowSolo = false` requires the configured minimum membership.
+- Challenge configuration must state this explicitly; there is no universal PAS AI Quest solo rule.
+
+---
+
+### 2026-08-24 — Shared manager review queue (resolves BA-009; amends spec §§7 and 12)
+
+Decided by: User
+
+- Any authorized `Quest.Manager` may review an eligible submission through a shared queue.
+- `SubmissionEvent` records the manager who actually performs each action.
+- The current product does not assign submissions to designated managers. This may be reconsidered if later operational evidence demonstrates a need.
+
+---
+
+### 2026-08-24 — Post-approval XP correction semantics (amends spec §§2 and 4)
+
+Decided by: User
+
+- Managers may correct beneficiary-specific awarded XP after approval, with an explicit reason.
+- Existing XP ledger rows are never edited or deleted; reversals and corrections are append-only and retain traceability to the affected original grant.
+- Effective awarded XP may be adjusted upward, downward or to zero.
+- Finalised reporting cycles remain manager-correctable with audit.
+- Participants cannot perform corrections.
+
+Implementation note: Use the approved `XPEntry` Reversal/Correction architecture. This decision defines functional behaviour and does not prescribe additional implementation mechanics.
+
+---
+
 *(When §10 is answered, add an entry below in this format:)*
 
 ```

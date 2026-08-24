@@ -65,9 +65,11 @@ The source files remain local-only under `local-source-evidence/`. They may cont
 
 **Evidence:** A question about one-person participation appears on Teams page 12, but the supplied evidence contains no clear answer.
 
-**Status:** `OPEN BUSINESS QUESTION`
+**Decision:** Solo participation is configured per challenge through `ChallengeTeamPolicy.allowSolo`. `allowSolo = true` permits a one-person `ChallengeParticipation`; `allowSolo = false` requires the configured minimum membership. Challenge configuration must make the choice explicit.
 
-**Rule:** `allowSolo` remains configurable and no default may be inferred.
+**Status:** `DECIDED`
+
+**Rule:** No universal PAS AI Quest solo rule may be inferred.
 
 ## Missing / Future Product Decisions
 
@@ -77,9 +79,9 @@ The source files remain local-only under `local-source-evidence/`. They may cont
 | Score-dispute workflow | `OPEN BUSINESS QUESTION` | Teams pages 7 and 17 show participants reporting missing scores. Decide whether disputes are tracked in the portal or remain an external Teams process. |
 | Wall of Fame / offline artifacts | `OUT OF SCOPE CANDIDATE` | Teams page 14 shows group artifacts being used for an offline display. Confirm whether any portal gallery or artifact workflow is required. |
 | Stable `CycleTeam` semantics | `OPEN BUSINESS QUESTION` | Evidence confirms named challenge groups and group reuse, but not a formally stable monthly team distinct from challenge participation. Clarify the intended meaning. |
-| Manager assignment | `OPEN BUSINESS QUESTION` | Evidence shows manager actions but does not establish review ownership or whether every manager shares one queue. |
-| Due versus close behaviour | `OPEN BUSINESS QUESTION` | Historical messages communicate final dates but do not clearly distinguish `dueAt` from `closeAt` or define late-submission behaviour. |
-| Roster eligibility/status semantics | `OPEN BUSINESS QUESTION` | CSVs confirm rostered zero-XP participants but do not define enrollment authority or the meanings of Active, Withdrawn and Inactive. |
+| Manager assignment | `PRODUCT DESIGN CHOICE` — `DECIDED` | Use a shared manager review queue. Any authorized `Quest.Manager` may act; the acting manager is captured in `SubmissionEvent`. No designated submission-manager assignment is introduced now. |
+| Due versus close behaviour | `PRODUCT DESIGN CHOICE` — `DECIDED` | `openAt`, `dueAt`, `closeAt` and participant overrides have the eligibility meanings recorded below and in `DECISIONS.md`. |
+| Roster eligibility/status semantics | `PRODUCT DESIGN CHOICE` — `DECIDED` | Only Active `CycleParticipant`s may create new submissions or be selected as beneficiaries. Later status changes do not rewrite historical awards. |
 
 ## Intentional Product Decisions
 
@@ -90,6 +92,10 @@ The following approved design areas deliberately improve or generalise the histo
 - Server-side authorization using Entra app roles.
 - Relational cycle teams, challenge participation, beneficiaries and evidence metadata.
 - One all-or-nothing outcome for multi-beneficiary submissions, intentionally simplifying historical partial-award behaviour.
+- Per-challenge solo participation through explicit `ChallengeTeamPolicy.allowSolo` configuration.
+- Active-cycle-participant eligibility for new claimants and beneficiaries, without retroactive score changes.
+- A shared authorized-manager review queue with the acting manager captured in the audit history.
+- Explicit `openAt`, `dueAt`, `closeAt` and participant-override eligibility semantics independent of the reporting cycle.
 - Private evidence storage with authorized, time-limited access rather than public URLs.
 - Configurable award categories represented as data rather than fixed code or permanent spreadsheet columns.
 - Explicit cycle, challenge and submission lifecycles with audit events.
@@ -133,14 +139,14 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | ID | Question | Status | Blocks |
 |----|----------|--------|--------|
 | BA-001 | May a multi-beneficiary submission be approved for only the beneficiaries whose evidence is complete? Decision: no; approval is all-or-nothing. | `DECIDED` | Nothing; decision recorded in `DECISIONS.md` |
-| BA-002 | When is solo participation allowed? | `OPEN BUSINESS QUESTION` | Any challenge that permits or rejects solo participation |
+| BA-002 | When is solo participation allowed? Decision: explicitly per challenge through `ChallengeTeamPolicy.allowSolo`. | `DECIDED` | Nothing |
 | BA-003 | How are team leaderboard points aggregated, how are bonuses treated, and how are cross-team points attributed? | `BUSINESS_RULE_PENDING` | Team leaderboard calculation |
 | BA-004 | Does `CycleTeam` represent a stable monthly identity distinct from challenge groups? | `OPEN BUSINESS QUESTION` | Final team-management semantics and related UI |
-| BA-005 | Who is eligible/enrolled and what do roster statuses mean? | `OPEN BUSINESS QUESTION` | Roster administration behaviour |
-| BA-006 | How do due date, close date and late submission differ? | `OPEN BUSINESS QUESTION` | Final submission eligibility/lifecycle rules |
+| BA-005 | Who may create new submissions or be selected as a beneficiary? Decision: Active `CycleParticipant`s only. | `DECIDED` | Nothing |
+| BA-006 | How do open, due, close and participant overrides determine submission eligibility? Decision recorded. | `DECIDED` | Nothing |
 | BA-007 | Where is authoritative historical score evidence for July Go Pass 3 awards? | `SOURCE EVIDENCE GAP` | Historical Go Pass 3 expansion/re-import |
 | BA-008 | Is a missing-score dispute tracked in the portal or handled externally? | `OPEN BUSINESS QUESTION` | Score-dispute workflow |
-| BA-009 | Are reviews assigned to a manager or shared across all managers? | `OPEN BUSINESS QUESTION` | Manager assignment/queue behaviour |
+| BA-009 | Are reviews assigned to a manager or shared across all managers? Decision: shared authorized-manager queue. | `DECIDED` | Nothing |
 | BA-010 | How long is approved/rejected evidence retained and when may it be purged? | `POLICY_PENDING` | Evidence retention/deletion implementation |
 
 ## Implementation Gates
@@ -149,6 +155,11 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 |------|------|
 | Step 5A authentication | **SAFE TO CONTINUE** |
 | Submission / review / beneficiary scoring | **BA-001 RESOLVED — SAFE TO BEGIN WHEN STEP 6 IS AUTHORISED** |
+| Participant submission/beneficiary eligibility | **BA-005 RESOLVED — SAFE TO IMPLEMENT** |
+| Submission/resubmission date eligibility | **BA-006 RESOLVED — SAFE TO IMPLEMENT** |
+| Solo challenge participation | **BA-002 RESOLVED — SAFE TO IMPLEMENT** |
+| Manager review ownership | **BA-009 RESOLVED — SAFE TO IMPLEMENT** |
+| Beneficiary-specific XP correction | **DECIDED — SAFE TO IMPLEMENT USING THE APPROVED APPEND-ONLY LEDGER** |
 | Historical Go Pass 3 expansion/re-import | **BLOCKED ON BA-007** |
 | Team leaderboard | **BLOCKED ON BA-003** |
 | Evidence retention implementation | **BLOCKED ON BA-010** |
