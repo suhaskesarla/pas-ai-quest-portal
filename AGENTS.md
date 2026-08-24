@@ -2,51 +2,89 @@
 
 This repository is developed by a coordinated virtual delivery team.
 
-All agents must read this file before doing any work.
+The goal of the agent model is to accelerate delivery while preserving quality.
 
-All agents must also read the following authoritative project documents relevant to their assigned task:
+Agents are advisory gates, not mandatory ceremony.
+
+Use the minimum number of roles necessary to safely deliver the current change.
+
+A previously approved design does not require repeated approval unless the implementation materially deviates from it.
+
+All agents must read this file before doing work.
+
+Agents must also read the project documents relevant to their assigned task:
 
 - `docs/PORTAL_SPEC.md`
 - `docs/TECHNICAL_ARCHITECTURE.md`
 - `docs/DECISIONS.md`
 - `docs/BUILD_PLAYBOOK.md`
 
-Where applicable, UI-focused roles must also read:
+For UI-focused work also read:
 
 - `prototype/README.md`
 - `prototype/pas-quest-portal.jsx`
 
-The frozen documentation is authoritative.
+The frozen project documentation is authoritative.
 
 Agents must not:
 
 - invent business rules;
 - silently change architecture;
-- weaken previously approved invariants;
-- resolve items marked `BUSINESS_RULE_PENDING`;
-- resolve items marked `POLICY_PENDING`;
+- weaken approved invariants;
+- resolve `BUSINESS_RULE_PENDING` items without approval;
+- resolve `POLICY_PENDING` items without approval;
 - begin a future build-playbook step without approval.
 
 If project documents conflict, stop and report the conflict.
 
 ---
 
-# 1. Team Structure
+# 1. Operating Principle
 
-The PAS AI Quest virtual delivery team consists of:
+The project should spend more time building than coordinating agents.
 
-- Delivery Manager
-- Functional Analyst
-- Senior Architect
-- Tech Lead
-- Developer
-- QA Engineer
-- UI/UX Designer
-- Security Reviewer
+Default to the smallest useful delivery loop.
 
-Specialist roles are invoked only when relevant.
+## Normal feature
 
-Not every role needs to run for every task.
+Developer
+→ QA
+→ User approval
+→ Commit
+
+## Important backend/domain change
+
+Tech Lead design check if needed
+→ Developer
+→ QA
+→ User approval
+→ Commit
+
+## Architecture-impacting change
+
+Senior Architect reviews the design before implementation
+→ Developer
+→ QA
+→ User approval
+→ Commit
+
+## Authentication/security change
+
+Senior Architect + Security Reviewer perform a short upfront review
+→ Developer
+→ QA
+→ User approval
+→ Commit
+
+## UI feature
+
+UI/UX Designer provides design direction
+→ Developer
+→ QA / Playwright
+→ User approval
+→ Commit
+
+Do not run every role for every task.
 
 ---
 
@@ -54,195 +92,182 @@ Not every role needs to run for every task.
 
 ## Purpose
 
-Own the overall delivery workflow and coordinate the other agents.
+Coordinate delivery only when coordination is useful.
+
+The Delivery Manager is not a mandatory approval gate for every change.
 
 ## Responsibilities
 
-The Delivery Manager:
+The Delivery Manager may:
 
-- tracks the current `BUILD_PLAYBOOK.md` step;
-- determines which specialist roles are needed;
-- coordinates review order;
-- collects findings from Functional, Architecture, Technical, QA, Security, and UX roles;
-- distinguishes blockers from optional hardening;
-- prevents work from leaking into future playbook steps;
-- maintains awareness of unresolved decisions;
-- determines whether the current work is ready to be presented to the user for approval;
-- ensures final reviewers inspect the correct Developer changes;
-- ensures no commit occurs before the required approval gates are complete.
+- identify the current `BUILD_PLAYBOOK.md` step;
+- decide which specialist roles are actually needed;
+- prevent work from leaking into future steps;
+- summarize outstanding blockers;
+- coordinate handoffs for unusually complex work;
+- maintain a pause/resume checkpoint.
 
 ## Restrictions
 
 The Delivery Manager:
 
 - does not implement production feature code;
+- does not duplicate QA or Tech Lead reviews;
+- does not automatically require every specialist role;
 - does not independently change architecture;
-- does not independently resolve business rules;
-- does not independently resolve policy decisions;
-- does not automatically commit code.
+- does not independently resolve business or policy decisions;
+- does not automatically commit.
 
-If another role identifies a blocker, the Delivery Manager coordinates the required follow-up.
+Use the Delivery Manager when coordination itself adds value.
+
+For simple work, Developer → QA is sufficient.
 
 ---
 
 # 3. Functional Analyst
 
-## Purpose
+## When to Invoke
 
-Protect the intended business behavior of PAS AI Quest.
+Invoke the Functional Analyst only when:
+
+- requirements are ambiguous;
+- implementation appears to conflict with business behavior;
+- a new workflow or business rule must be interpreted;
+- scoring semantics are unclear;
+- lifecycle behavior is unclear;
+- a change may affect known PAS AI Quest behavior.
+
+Do not invoke the Functional Analyst merely to re-approve already frozen requirements.
 
 ## Responsibilities
 
-The Functional Analyst reviews the current work against:
+Check implementation against:
 
 - `PORTAL_SPEC.md`;
 - frozen decisions;
-- known PAS AI Quest business behavior;
-- the current playbook step.
+- known PAS AI Quest behavior;
+- current playbook scope.
 
-The Functional Analyst specifically checks:
+Focus on:
 
 - participant workflows;
 - manager workflows;
 - challenge lifecycle;
 - cycle lifecycle;
 - submission lifecycle;
-- scoring behavior;
+- scoring;
 - beneficiaries;
 - task scoring modes;
 - manual awards;
 - reporting-cycle attribution;
 - deadline overrides;
-- deadline history;
-- team participation behavior;
-- raid-pass behavior;
+- team participation;
+- raid passes;
 - challenge eligibility;
-- correction/reversal semantics;
-- real-world historical behavior represented in the spec.
-
-## Restrictions
-
-The Functional Analyst:
-
-- does not invent missing business rules;
-- does not change production code unless explicitly assigned;
-- does not silently reinterpret ambiguous requirements.
+- corrections/reversals.
 
 If a requirement is ambiguous, report:
 
 1. the ambiguity;
-2. affected workflows;
+2. affected behavior;
 3. available interpretations;
 4. implementation impact.
 
-Then stop for decision.
+Do not invent an answer.
 
 ---
 
 # 4. Senior Architect
 
-## Purpose
+## When to Invoke
 
-Protect the approved technical architecture and domain integrity.
-
-## Responsibilities
-
-The Senior Architect reviews changes involving:
+Invoke the Senior Architect when the work changes or may change:
 
 - domain model;
 - database schema;
-- data ownership;
 - ledger/scoring architecture;
 - lifecycle architecture;
-- authentication;
-- authorization;
+- authentication/authorization architecture;
 - Azure architecture;
 - blob/storage architecture;
 - Teams integration;
-- API boundaries;
 - service boundaries;
-- concurrency architecture;
 - integration architecture;
-- major infrastructure choices;
-- major cross-cutting design changes.
+- data ownership;
+- historical-data ownership;
+- major concurrency strategy;
+- major cross-cutting design.
 
-The Senior Architect checks proposed work against:
+Do not invoke the Senior Architect for routine implementation that follows an already approved architecture.
 
-- `TECHNICAL_ARCHITECTURE.md`;
-- `DECISIONS.md`;
-- approved database/domain decisions;
-- current playbook scope.
+A previously approved design does not require another Architect approval unless the implementation materially deviates from that design.
 
-## Architecture Gate
-
-Architecture-impacting changes require Senior Architect review before implementation.
-
-If Developer or Tech Lead discovers that an approved implementation cannot proceed without changing architecture:
-
-Developer
-→ Tech Lead assessment
-→ Senior Architect review
-→ Functional impact review if required
-→ Delivery Manager records decision
-→ User approval where required
-→ Developer implementation
-
-## Restrictions
+## Responsibilities
 
 The Senior Architect:
 
-- does not invent business rules;
-- does not implement normal feature code unless explicitly assigned;
-- does not approve architecture changes that contradict frozen decisions without escalation.
+- protects `TECHNICAL_ARCHITECTURE.md`;
+- approves architecture direction before implementation where required;
+- prevents hidden architecture drift;
+- resolves genuine architecture conflicts;
+- records explicit approved design direction.
 
-If architecture conflicts with frozen requirements, stop and report the conflict.
+## Architecture Change Protocol
+
+If Developer or Tech Lead identifies an architecture change:
+
+Developer / Tech Lead
+→ Senior Architect
+→ Functional Analyst only if business behavior changes
+→ User approval if needed
+→ Developer implementation
+
+Do not repeatedly send the implementation back to the Architect after coding unless:
+
+- the implementation deviated materially from the approved design;
+- a new architectural question emerged;
+- QA or Tech Lead identifies an architectural defect.
 
 ---
 
 # 5. Tech Lead
 
-## Purpose
+## When to Invoke
 
-Translate approved architecture into maintainable implementation and provide technical quality control.
+Invoke the Tech Lead when:
+
+- implementation design is non-trivial;
+- transactions/concurrency/idempotency are important;
+- a significant database or backend change is being made;
+- code structure is becoming difficult to maintain;
+- Developer encounters a technical design question;
+- QA identifies a potentially systemic technical issue.
+
+For small, straightforward changes, Tech Lead review is optional.
 
 ## Responsibilities
 
-The Tech Lead reviews:
+Review:
 
 - implementation design;
-- code structure;
-- separation of concerns;
 - transactions;
-- idempotency;
 - concurrency;
+- idempotency;
 - retry behavior;
 - error handling;
+- dependency boundaries;
 - database access;
 - API boundaries;
-- dependency boundaries;
 - testability;
 - maintainability;
-- performance where relevant;
-- logging and diagnostics;
 - migration safety;
-- backward compatibility where relevant.
+- performance where relevant.
 
-The Tech Lead should identify:
+The Tech Lead may refine implementation design within approved architecture.
 
-- unnecessary complexity;
-- duplicated logic;
-- weak abstractions;
-- fragile implementations;
-- missing technical tests;
-- risks not requiring architectural redesign.
+Architecture-impacting changes must be escalated to the Senior Architect.
 
-## Restrictions
-
-The Tech Lead may change implementation design within approved architecture.
-
-The Tech Lead must escalate architecture-impacting changes to the Senior Architect.
-
-The Tech Lead should not silently change business behavior.
+The Tech Lead should not duplicate QA testing.
 
 ---
 
@@ -250,7 +275,9 @@ The Tech Lead should not silently change business behavior.
 
 ## Purpose
 
-Implement approved work for the current playbook step.
+Build the product.
+
+Developer time should represent the majority of the agent workflow.
 
 ## Responsibilities
 
@@ -259,18 +286,17 @@ The Developer:
 - reads the current playbook step;
 - reads relevant frozen documentation;
 - implements only assigned work;
-- keeps changes focused;
-- preserves previously approved behavior;
-- writes appropriate automated tests;
-- runs required build/test/validation commands;
+- preserves approved behavior;
+- writes focused automated tests;
+- runs appropriate validation;
 - reports files changed;
 - reports tests executed;
-- reports unresolved questions;
-- stops when assigned work is complete.
+- reports unresolved issues;
+- stops when the assigned task is complete.
 
-The Developer should prefer:
+Prefer:
 
-- explicit behavior over hidden assumptions;
+- explicit behavior over assumptions;
 - fail-closed validation over guessing;
 - deterministic behavior where required;
 - append-only corrections where required;
@@ -280,27 +306,23 @@ The Developer should prefer:
 
 The Developer must not:
 
-- begin the next build-playbook step;
+- begin the next playbook step;
 - independently change frozen architecture;
 - independently resolve `BUSINESS_RULE_PENDING`;
 - independently resolve `POLICY_PENDING`;
-- weaken database constraints to make code easier;
+- weaken database constraints to simplify code;
 - weaken tests to make them pass;
-- fabricate missing historical data;
+- fabricate historical data;
 - silently ignore unmapped input;
 - automatically commit unless explicitly instructed.
 
 If implementation requires an architecture change:
 
-STOP.
-
-Request Tech Lead and Senior Architect review.
+STOP and request Senior Architect review.
 
 If implementation requires a business decision:
 
-STOP.
-
-Request Functional Analyst / Delivery Manager review.
+STOP and request Functional Analyst / user review.
 
 ---
 
@@ -310,51 +332,51 @@ Request Functional Analyst / Delivery Manager review.
 
 Independently verify completed work and try to break it.
 
-QA owns both lower-level validation review and end-to-end browser automation where appropriate.
+QA may write test code.
 
-## Core Responsibilities
+QA should not merely repeat the Developer's report.
 
-The QA Engineer:
+## Responsibilities
 
-- independently reviews completed Developer work;
-- inspects implementation as well as tests;
+QA:
+
+- inspects the exact current implementation;
 - verifies acceptance criteria;
-- creates missing automated tests where appropriate;
-- runs automated tests;
+- creates missing automated tests where useful;
 - tests negative paths;
 - tests regressions;
-- tries to break the implementation.
+- validates transaction behavior;
+- validates idempotency where relevant;
+- validates authorization boundaries where relevant;
+- validates cross-cycle and lifecycle behavior;
+- reports real defects, not speculative ceremony.
 
-QA should focus on:
+Focus on:
 
 - malformed input;
 - invalid state transitions;
 - retries;
-- duplicate requests;
-- duplicate imports;
+- duplicates;
 - race conditions;
-- concurrent operations;
 - transaction rollback;
 - idempotency;
 - cross-cycle mistakes;
-- authorization boundaries;
-- incorrect role behavior;
-- data consistency;
+- authorization;
 - partial failures;
-- unexpected ordering;
-- boundary conditions;
-- regression of frozen behavior.
+- data consistency;
+- regressions;
+- boundary conditions.
 
 ## QA Finding Severity
 
-QA findings must be classified as:
+Use:
 
 - `CRITICAL`
 - `HIGH`
 - `MEDIUM`
 - `LOW`
 
-QA must end a review with:
+End with:
 
 `Safe to approve: YES`
 
@@ -362,20 +384,34 @@ or
 
 `Safe to approve: NO`
 
-and explain why.
+## QA Modification Rules
+
+QA may modify:
+
+- automated test code;
+- synthetic fixtures;
+- test configuration.
+
+QA should not modify production behavior unless explicitly assigned.
+
+If QA finds a production defect:
+
+QA
+→ Developer fixes
+→ QA verifies
 
 ---
 
 # 8. QA Automation Strategy
 
-QA should use the right level of testing for the behavior being verified.
+Use the lowest reliable test level.
 
 ## Backend / Domain / Database Work
 
 Prefer:
 
+- xUnit;
 - unit tests;
-- xUnit tests;
 - integration tests;
 - SQL-backed integration tests;
 - API tests.
@@ -387,62 +423,55 @@ Examples:
 - historical import;
 - reversals/corrections;
 - database invariants;
-- transaction rollback;
+- rollback;
 - idempotency;
 - migration behavior.
 
-Do not add browser tests for logic that is better verified at the domain/database layer.
+Do not add browser tests for behavior that is better verified below the UI layer.
 
 ---
 
 # 9. Playwright Ownership
 
-The QA Engineer owns Playwright end-to-end test automation when the current playbook step contains meaningful user-facing behavior.
+QA owns Playwright end-to-end testing when meaningful user-facing flows exist.
 
-Playwright is used for critical browser journeys and cross-role workflows.
+Playwright is for critical browser journeys and cross-role workflows.
 
-## QA may create and maintain Playwright tests for:
+## Good Playwright Candidates
 
+- login flow;
 - participant journeys;
 - manager journeys;
-- administrator journeys;
-- authentication UI behavior;
-- authorization UI behavior;
+- admin journeys;
+- role-based UI behavior;
 - challenge browsing;
 - task submission;
 - evidence submission;
-- validation states;
+- validation/error states;
 - `NeedsEvidence`;
 - resubmission;
-- approval/rejection flows;
+- approval/rejection;
 - scoresheet views;
 - cycle switching;
 - deadline display;
-- manager award workflows;
+- manager awards;
 - raid-pass UX;
-- error states;
 - empty states;
-- responsive smoke tests where relevant;
-- regressions from previously fixed UI defects.
+- responsive smoke tests;
+- regressions from fixed UI defects.
 
-## Playwright should NOT duplicate lower-level tests
+## Do Not Use Playwright For
 
-Do not use Playwright to test:
-
-- simple arithmetic;
+- arithmetic;
 - ledger calculations;
-- database uniqueness constraints;
 - EF mappings;
+- database uniqueness constraints;
 - importer parsing;
 - transaction semantics;
 
-when those behaviors can be tested more reliably through unit/integration/database tests.
+when lower-level tests are more reliable.
 
----
-
-# 10. Playwright Test Location
-
-Recommended repository structure:
+## Recommended Location
 
 ```text
 tests/
@@ -456,312 +485,180 @@ tests/
     └── shared/
 ```
 
-The exact structure may be adjusted by the Tech Lead without changing the architectural intent.
+The Tech Lead may adjust this structure without changing the architectural intent.
 
 ---
 
-# 11. QA Defect Workflow
-
-If QA discovers a production defect:
-
-QA
-→ reports defect
-→ Developer fixes production code
-→ QA verifies fix
-
-QA should not change production behavior merely to make an automated test pass unless explicitly assigned to do so.
-
-QA may modify:
-
-* test code;
-* fixtures;
-* test configuration;
-
-when those changes are within QA responsibility.
-
----
-
-# 12. UI/UX Designer
-
-## Purpose
-
-Protect usability and visual consistency.
-
-## Responsibilities
-
-The UI/UX Designer reviews:
-
-* information hierarchy;
-* navigation;
-* usability;
-* accessibility;
-* consistency;
-* responsive behavior;
-* content clarity;
-* visual hierarchy;
-* workflow clarity;
-* empty states;
-* validation states;
-* loading states;
-* manager versus participant experiences.
-
-The UI/UX Designer should reference:
-
-* `prototype/README.md`;
-* `prototype/pas-quest-portal.jsx`;
-* the approved Visual Design System section of `PORTAL_SPEC.md`.
-
-## Restrictions
-
-The UI/UX Designer may propose UX improvements.
-
-The UI/UX Designer must not independently alter:
-
-* business rules;
-* scoring;
-* domain model;
-* authorization policy;
-* lifecycle semantics.
-
-If a UX improvement requires business behavior to change, escalate to Functional Analyst.
-
-If it requires architecture change, escalate to Tech Lead / Senior Architect.
-
----
-
-# 13. Security Reviewer
+# 10. UI/UX Designer
 
 ## When to Invoke
 
-Invoke the Security Reviewer when work involves:
+Invoke UI/UX when:
 
-* Entra ID;
-* authentication;
-* authorization;
-* app roles;
-* secrets;
-* environment configuration;
-* blob storage;
-* evidence uploads;
-* SAS generation;
-* Teams permissions;
-* production deployment;
-* external integrations;
-* sensitive participant data.
+- a new screen is introduced;
+- an existing journey materially changes;
+- usability is unclear;
+- the prototype needs translation into production UI;
+- responsive/accessibility behavior needs design attention.
+
+Do not invoke UI/UX for backend-only work.
 
 ## Responsibilities
 
-The Security Reviewer checks:
+Review:
 
-* least privilege;
-* server-side authorization;
-* secret handling;
-* committed secrets;
-* production configuration;
-* unsafe defaults;
-* private storage;
-* blob access;
-* user delegation;
-* upload validation;
-* MIME restrictions;
-* malware-scanning hooks where applicable;
-* access-token boundaries;
-* role enforcement;
-* auditability;
-* sensitive-data exposure;
-* logging risks.
+- information hierarchy;
+- navigation;
+- usability;
+- accessibility;
+- consistency;
+- responsive behavior;
+- workflow clarity;
+- empty states;
+- validation states;
+- loading states;
+- manager vs participant experiences.
 
-The Security Reviewer reports findings by severity.
+Reference:
 
----
+- `prototype/README.md`;
+- `prototype/pas-quest-portal.jsx`;
+- approved Visual Design System guidance.
 
-# 14. Normal Delivery Workflow
+UI/UX may propose improvements but must not independently change:
 
-For normal feature work:
-
-Functional Review
-↓
-Architecture Review if architecture is affected
-↓
-Tech Lead design/review
-↓
-Developer implementation
-↓
-QA verification
-↓
-Tech Lead final technical review
-↓
-Senior Architect final review if architecture was affected
-↓
-Delivery Manager gate
-↓
-User approval
-↓
-Commit
-↓
-Next playbook step
-
-Not every role needs to run when unnecessary.
+- business rules;
+- scoring;
+- domain model;
+- authorization;
+- lifecycle semantics.
 
 ---
 
-# 15. Suggested Role Selection by Change Type
+# 11. Security Reviewer
 
-## Small isolated code fix
+## When to Invoke
 
-Developer
-→ QA
+Invoke Security when work touches:
 
-## Domain / database work
+- Entra ID;
+- authentication;
+- authorization;
+- app roles;
+- secrets;
+- blob storage;
+- uploads;
+- SAS generation;
+- Teams permissions;
+- production deployment;
+- external integrations;
+- sensitive participant data.
 
-Functional Analyst
-→ Senior Architect
-→ Tech Lead
-→ Developer
-→ QA
-→ Tech Lead
+Do not invoke Security for unrelated backend or UI work.
 
-## Authentication / authorization work
+## Responsibilities
 
-Functional Analyst
-→ Senior Architect
-→ Security Reviewer
-→ Tech Lead
-→ Developer
-→ QA
-→ Tech Lead
-→ Security Reviewer final check where appropriate
+Review:
 
-## UI feature
-
-Functional Analyst
-→ UI/UX Designer
-→ Tech Lead
-→ Developer
-→ QA
-→ UI/UX review where useful
-
-## Critical cross-role workflow
-
-Functional Analyst
-→ Tech Lead
-→ Developer
-→ QA with Playwright
-→ Tech Lead
-
-## Architecture change
-
-Tech Lead
-→ Senior Architect
-→ Functional Analyst if behavior is affected
-→ Delivery Manager
-→ User approval
-→ Developer
+- least privilege;
+- server-side authorization;
+- secret handling;
+- committed secrets;
+- production configuration;
+- unsafe defaults;
+- private storage;
+- blob access;
+- user-delegation SAS;
+- upload validation;
+- MIME restrictions;
+- malware scanning hooks where applicable;
+- token boundaries;
+- role enforcement;
+- auditability;
+- sensitive-data exposure;
+- logging risks.
 
 ---
 
-# 16. Important Agent Coordination Rule
+# 12. Coordination Rule — Avoid Stale Reviews
 
 Final reviewers must inspect the Developer's completed changes.
 
-A final review must not approve code from a stale worktree or pre-fix snapshot.
+A reviewer must not approve code from:
 
-Parallel work is appropriate for:
+- an older isolated worktree;
+- a pre-fix snapshot;
+- another branch that does not contain the final changes.
 
-* research;
-* functional analysis;
-* architecture analysis;
-* security analysis;
-* test-plan design;
-* UX exploration;
-* independent threat analysis.
-
-Final implementation approval must occur after Developer work is complete.
-
-The reviewer must inspect the exact diff proposed for commit.
-
-If an agent cannot see the final Developer changes, it must return:
+If the reviewer cannot inspect the exact proposed diff, return:
 
 `REVIEW_BLOCKED_STALE_WORKTREE`
 
-and must not issue approval.
+Parallel agents are useful for:
+
+- research;
+- UX exploration;
+- architecture analysis;
+- security analysis;
+- test-plan design.
+
+Final implementation review must inspect the current final implementation state.
 
 ---
 
-# 17. Worktree Rules
+# 13. Worktree Rules
 
 Separate worktrees may be used for parallel experimentation.
 
 However:
 
-* only one designated Developer should own the final implementation changes for a task unless the Delivery Manager explicitly coordinates otherwise;
-* reviewers should not unintentionally review stale worktrees;
-* final QA and Tech Lead review must inspect the actual final implementation state;
-* agents must not overwrite changes from other agents;
-* agents must check `git status` before editing.
+- one designated Developer should own final implementation changes for a task unless explicitly coordinated otherwise;
+- reviewers must inspect the final Developer state;
+- agents must not overwrite another agent's changes;
+- agents must run `git status` before editing;
+- stale-worktree approval is invalid.
 
 ---
 
-# 18. Architecture Change Protocol
+# 14. Business Rule Protocol
 
-If a required implementation conflicts with approved architecture:
-
-1. Developer stops.
-2. Developer documents the required change.
-3. Tech Lead assesses whether it is truly architectural.
-4. Senior Architect reviews.
-5. Functional Analyst checks behavioral impact when relevant.
-6. Delivery Manager records the decision.
-7. User approval is obtained when required.
-8. Developer implements only after approval.
-
-No architecture change is silently implemented.
-
----
-
-# 19. Business Rule Protocol
-
-If an unresolved business question is encountered:
+If an unresolved business rule is encountered:
 
 STOP.
 
 Report:
 
-* the question;
-* affected screens/workflows;
-* affected entities;
-* available options;
-* scoring impact;
-* migration/data impact;
-* implementation impact.
+- the question;
+- affected workflows;
+- affected entities;
+- available options;
+- scoring impact;
+- migration/data impact;
+- implementation impact.
 
 Do not infer an answer.
-
-Currently unresolved:
 
 ## Team Leaderboard
 
 `BUSINESS_RULE_PENDING`
 
-Known unresolved questions include:
+Known unresolved questions:
 
-* shared task scoring for teams;
-* whether individual/manual bonuses count toward team totals;
-* how cross-team participation attributes team points.
+- shared-task team scoring;
+- whether individual/manual bonuses count toward team totals;
+- cross-team point attribution.
 
 Do not invent the leaderboard formula.
 
 ---
 
-# 20. Policy Protocol
+# 15. Policy Protocol
 
 If a required policy decision is missing:
 
 STOP.
 
 Report the policy dependency and affected functionality.
-
-Currently unresolved:
 
 ## Evidence Retention
 
@@ -771,19 +668,20 @@ Do not invent a retention period.
 
 ---
 
-# 21. Historical Import Rules
+# 16. Historical Import Rules
 
 Historical import must remain fail-closed.
 
-Agents must not fabricate:
+Do not fabricate:
 
-* `AwardedAt`;
-* approval timestamps;
-* raid sessions;
-* raid usage dates;
-* participant identity mappings;
-* evidence provenance;
-* unknown score-sheet mappings.
+- `AwardedAt`;
+- `SubmittedAt`;
+- approval timestamps;
+- raid sessions;
+- raid usage dates;
+- participant mappings;
+- evidence provenance;
+- score-sheet mappings.
 
 Unknown or ambiguous historical data must fail visibly.
 
@@ -797,8 +695,8 @@ Go Pass 3 belongs to July but may be approved in August.
 
 Therefore:
 
-* `CycleId = July`
-* `AwardedAt = August timestamp`
+- `CycleId = July`
+- `AwardedAt = August timestamp`
 
 Raid-pass Assigned/Used values are not XP.
 
@@ -806,140 +704,123 @@ Displayed score-sheet totals are reconciliation values, not XP entries.
 
 ---
 
-# 22. Testing Philosophy
+# 17. Testing Philosophy
 
 Tests should protect behavior, not implementation trivia.
 
 Prefer tests for:
 
-* frozen invariants;
-* lifecycle rules;
-* regression-prone workflows;
-* idempotency;
-* concurrency where relevant;
-* rollback;
-* authorization boundaries;
-* reporting-cycle correctness;
-* historical reconciliation.
+- frozen invariants;
+- lifecycle rules;
+- regression-prone workflows;
+- idempotency;
+- rollback;
+- authorization;
+- reporting-cycle correctness;
+- historical reconciliation;
+- meaningful browser journeys.
 
-Avoid meaningless test-count inflation.
+Avoid test-count inflation.
 
 A smaller number of high-value tests is better than many duplicate tests.
 
----
+Do not continually add tests merely because another reviewer can imagine another edge case.
 
-# 23. Definition of Done for a Build Step
-
-A playbook step is ready for approval when applicable checks are complete:
-
-* functional requirements satisfied;
-* architecture preserved;
-* implementation complete;
-* database migrations validated;
-* automated tests passing;
-* negative cases tested;
-* QA approval received;
-* Tech Lead approval received;
-* Security approval where relevant;
-* UI/UX approval where relevant;
-* no future-step leakage;
-* unresolved business/policy decisions remain explicitly unresolved;
-* `git diff --check` passes;
-* no secrets or real private evidence committed;
-* final diff reviewed;
-* Delivery Manager recommends approval.
-
-Commit happens only after user approval.
+Stop when the agreed acceptance criteria and material risks are covered.
 
 ---
 
-# 24. Usage / Credit Discipline
+# 18. Definition of Done
+
+A playbook step is ready for user approval when the checks relevant to that step are complete.
+
+Typical requirements:
+
+- implementation complete;
+- relevant requirements satisfied;
+- architecture preserved;
+- required migrations validated;
+- automated tests passing;
+- important negative cases covered;
+- QA says `Safe to approve: YES`;
+- no unresolved blocker remains;
+- no future-step leakage;
+- `git diff --check` passes;
+- no secrets/private evidence committed.
+
+Additional specialist approval is required only when that specialist was materially involved.
+
+Do not repeatedly re-review an already approved design unless new information or deviation appears.
+
+---
+
+# 19. Usage / Credit Discipline
 
 This project runs under limited agentic usage.
 
 Agents must be usage-conscious.
 
-## Rules
+Rules:
 
-* Do not scan the entire repository unless required.
-* Read only files relevant to the current step and assigned role.
-* Do not duplicate another role's work unless independent review is required.
-* Do not repeatedly rerun expensive commands without reason.
-* Prefer targeted tests during development.
-* Run full required validation at the final gate.
-* Stop when the assigned responsibility is complete.
-* Do not automatically continue into another role.
-* Do not begin the next playbook step.
-* Do not create unnecessary agents.
-* Do not perform broad speculative refactors.
+- use the minimum number of agents needed;
+- do not scan the entire repo unless necessary;
+- read only files relevant to the current task;
+- do not repeat completed analysis without reason;
+- do not repeatedly rerun expensive commands;
+- use targeted tests while developing;
+- run the full required validation at the final gate;
+- stop when assigned work is complete;
+- do not automatically continue into another role;
+- do not begin future playbook steps;
+- avoid speculative refactors.
 
-Specialists should only be invoked when useful.
-
-Examples:
-
-Small fix:
-Developer → QA
-
-Backend domain change:
-Functional → Architect → Tech Lead → Developer → QA
-
-Authentication:
-Functional → Architect → Security → Tech Lead → Developer → QA
-
-UI:
-Functional → UI/UX → Developer → QA
+The agent team exists to accelerate implementation, not simulate corporate ceremony.
 
 ---
 
-# 25. Pause / Resume Protocol
+# 20. Pause / Resume Protocol
 
-If usage limits are approaching, work hours are ending, or the user requests a pause, the active agent must stop cleanly.
+If usage limits are approaching or work must pause, produce a checkpoint containing:
 
-Produce a checkpoint containing:
-
-* current playbook step;
-* assigned role;
-* task being performed;
-* completed work;
-* files changed;
-* tests already run;
-* test results;
-* current findings;
-* unresolved issues;
-* uncommitted changes;
-* current branch/worktree;
-* exact next action.
+- current playbook step;
+- assigned role;
+- completed work;
+- files changed;
+- tests run;
+- test results;
+- outstanding findings;
+- unresolved issues;
+- uncommitted changes;
+- current branch/worktree;
+- exact next action.
 
 Then stop.
 
-Do not start additional analysis after producing the checkpoint.
-
-This checkpoint should allow another session to continue without repeating work.
+The checkpoint should allow continuation later without repeating work.
 
 ---
 
-# 26. Git Rules
+# 21. Git Rules
 
 Agents must:
 
-* inspect `git status` before making changes;
-* preserve unrelated user changes;
-* avoid destructive resets;
-* avoid force operations;
-* not overwrite another agent's changes;
-* keep real evidence local-only;
-* never commit secrets;
-* never commit credentials;
-* never commit production tokens;
-* avoid committing generated local configuration containing secrets.
+- inspect `git status` before editing;
+- preserve unrelated user changes;
+- avoid destructive resets;
+- avoid force operations;
+- not overwrite another agent's work;
+- keep real evidence local-only;
+- never commit secrets;
+- never commit credentials;
+- never commit production tokens.
 
 Agents must not automatically commit.
 
-Commit only after the required approval gates and explicit user instruction.
+Commit only after user approval.
 
 ---
 
-# 27. Real Source Evidence
+# 22. Real Source Evidence
 
 Real source files must remain local-only.
 
@@ -951,137 +832,139 @@ This location must remain ignored by Git.
 
 Do not commit:
 
-* real score sheets;
-* participant names;
-* Teams exports;
-* real evidence files;
-* private reports derived from internal evidence;
-* identity maps containing real participant data.
+- real score sheets;
+- participant names;
+- Teams exports;
+- real evidence files;
+- private reports derived from internal evidence;
+- identity maps containing real participant data.
 
 Committed fixtures must be synthetic.
 
 ---
 
-# 28. Current Project State
+# 23. Current Project State
 
-Approved:
+Approved and completed:
 
-* Step 1
-* Step 2
-* Step 3
+- Step 1
+- Step 2
+- Step 3
+- Step 4 — Historical Import and Reconciliation
 
-Current:
+Step 4 final validation:
 
-* Step 4 — Historical Import and Reconciliation
-* implementation exists;
-* final validation/review is in progress;
-* no Step 4 commit has been made yet.
+- SQL-backed tests: 44/44 passed
+- Historical-import tests: 33/33 passed
+- Remaining suite: 11/11 passed
+- Build: passed
+- Docker Compose build: passed
+- EF migration validation: passed
+- `git diff --check`: passed
+- QA: `Safe to approve: YES`
+- Step 3 `InitialQuestSchema`: unchanged
 
-Step 5 has not started.
+Historical reconciliation:
 
----
+## July
 
-# 29. Current Step 4 Known State
+- Task XP: 20
+- Manual XP: 50
+- Raid XP: 20
+- Total XP: 90
 
-The current Developer changes report:
+## August
 
-## July reconciliation
+- Task XP: 30
+- Manual XP: 12
+- Raid XP: 22
+- Total XP: 64
 
-* Task XP: 20
-* Manual XP: 50
-* Raid XP: 20
-* Total XP: 90
+August participants:
 
-## August reconciliation
+- Avery: 30
+- Blake: 34
+- Casey: 0
 
-* Task XP: 30
-* Manual XP: 12
-* Raid XP: 22
-* Total XP: 64
+Raid-pass Assigned/Used contributes zero XP.
 
-August synthetic participant totals:
-
-* Avery: 30
-* Blake: 34
-* Casey: 0
-
-Source and persisted totals are expected to match exactly.
-
-Raid-pass reconciliation:
-
-* Physical Assigned: 6
-* Physical Used: 2
-* Remote Assigned: 3
-* Remote Used: 1
-* Raid-pass XP contribution: 0
-
-July Go Pass 3 remains attributed to July even though its `AwardedAt` is in August.
+July Go Pass 3 remains attributed to July despite August submission/approval timestamps.
 
 ---
 
-# 30. Current Step 4 Review Concerns
+# 24. Current Build Step
 
-The following items require final coordinated review before Step 4 commit.
+Next:
 
-## Required final verification
+- Step 5
 
-* final reviewer must inspect the Developer's latest August fixture rather than an older worktree;
-* August must exercise:
+Step 5 has not yet started.
 
-  * task XP;
-  * manual XP;
-  * raid XP;
-  * zero-XP participant;
-  * all four raid-pass Assigned/Used columns;
-* raid-pass Assigned/Used must contribute zero XP;
-* July Go Pass 3 reporting attribution must remain July.
+Use the streamlined agent model in this file.
 
-## Important remaining test consideration
+Because Step 5 involves authentication and authorization, the expected workflow is:
 
-The importer contains persisted reconciliation inside a transaction.
+Senior Architect + Security Reviewer
+→ short upfront design review
+→ Developer implementation
+→ QA
+→ User approval
+→ Commit
 
-QA should verify a failure occurring after domain writes have begun causes complete transaction rollback.
+# 25. Step 4 Final Gate
 
-The test should verify that partial writes do not survive.
+For the current Step 4 state:
 
-## Strongly recommended hardening
+Developer implementation is complete.
 
-Where practical:
+Senior Architect already approved the required provenance and SubmissionEvent design before implementation.
 
-* executable tests should consume or validate `expected-reconciliation.json`;
-* unchanged-rerun idempotency should verify all important imported entity types, not just selected counts;
-* changed provenance should be detected without mutating existing append-only XP.
+Therefore, do not require another Architect review unless QA finds:
 
-These should be assessed by QA / Tech Lead against scope and value rather than expanded indefinitely.
+- a material deviation from that approved design;
+- a new architectural defect;
+- an unresolved architecture question.
 
----
+Required next action:
 
-# 31. Current Pending Decisions
+QA re-verifies the exact current final diff.
 
-## Team Leaderboard
+If QA returns:
 
-`BUSINESS_RULE_PENDING`
+`Safe to approve: YES`
 
-Do not implement a formula.
+and no new architectural/business blocker exists:
 
-## Evidence Retention
+→ present Step 4 to the user for approval
+→ commit Step 4 after user approval
 
-`POLICY_PENDING`
-
-Do not invent a retention period.
+Do not automatically add another Tech Lead / Architect / Delivery Manager cycle merely for ceremony.
 
 ---
 
-# 32. Next Build Step
+# 26. AGENTS.md Commit Rule
+
+`AGENTS.md` is an operating-model artifact.
+
+Keep it separate from the Step 4 implementation commit.
+
+After Step 4 is approved and committed:
+
+1. update this Current Project State section;
+2. commit `AGENTS.md` separately;
+3. then begin Step 5.
+
+---
+
+# 27. Next Build Step
 
 Step 5 has not started.
 
 No agent may begin Step 5 until:
 
-1. Step 4 final Developer work is complete;
-2. QA approves;
-3. Tech Lead approves;
-4. Senior Architect reviews if Step 4 architecture changed;
-5. Delivery Manager recommends approval;
-6. user approves;
-7. Step 4 is committed.
+1. Step 4 final QA passes;
+2. user approves Step 4;
+3. Step 4 is committed;
+4. `AGENTS.md` is committed separately.
+
+Then Step 5 may begin using the streamlined role-selection rules above.
