@@ -78,7 +78,7 @@ The source files remain local-only under `local-source-evidence/`. They may cont
 | Challenge-date discoverability | `PRODUCT DESIGN CHOICE` | Teams page 7 shows difficulty finding the latest challenge dates. Decide how authoritative current and revised dates are surfaced and how superseded announcements are identified. |
 | Score-dispute workflow | `OPEN BUSINESS QUESTION` | Teams pages 7 and 17 show participants reporting missing scores. Decide whether disputes are tracked in the portal or remain an external Teams process. |
 | Wall of Fame / offline artifacts | `OUT OF SCOPE CANDIDATE` | Teams page 14 shows group artifacts being used for an offline display. Confirm whether any portal gallery or artifact workflow is required. |
-| Stable `CycleTeam` semantics | `OPEN BUSINESS QUESTION` | Evidence confirms named challenge groups and group reuse, but not a formally stable monthly team distinct from challenge participation. Clarify the intended meaning. |
+| Stable `CycleTeam` semantics | `PRODUCT DESIGN CHOICE` — `DECIDED` | `CycleTeam` is the participant's cycle-level team identity. My Team presents the current open cycle-team assignment separately from factual challenge-participation snapshots. This resolves BA-004 for participant presentation without deciding team scoring. |
 | Manager assignment | `PRODUCT DESIGN CHOICE` — `DECIDED` | Use a shared manager review queue. Any authorized `Quest.Manager` may act; the acting manager is captured in `SubmissionEvent`. No designated submission-manager assignment is introduced now. |
 | Due versus close behaviour | `PRODUCT DESIGN CHOICE` — `DECIDED` | `openAt`, `dueAt`, `closeAt` and participant overrides have the eligibility meanings recorded below and in `DECISIONS.md`. |
 | Roster eligibility/status semantics | `PRODUCT DESIGN CHOICE` — `DECIDED` | Only Active `CycleParticipant`s may create new submissions or be selected as beneficiaries. Later status changes do not rewrite historical awards. |
@@ -96,6 +96,9 @@ The following approved design areas deliberately improve or generalise the histo
 - Active-cycle-participant eligibility for new claimants and beneficiaries, without retroactive score changes.
 - A shared authorized-manager review queue with the acting manager captured in the audit history.
 - Explicit `openAt`, `dueAt`, `closeAt` and participant-override eligibility semantics independent of the reporting cycle.
+- An explicit reporting-cycle selector for participant reporting surfaces that never controls challenge eligibility, lifecycle or XP attribution.
+- Separate presentation of cycle-level team identity and challenge-specific participation snapshots.
+- An Active-participant individual leaderboard with zero-XP participants retained and competition ranking for ties.
 - Private evidence storage with authorized, time-limited access rather than public URLs.
 - Configurable award categories represented as data rather than fixed code or permanent spreadsheet columns.
 - Explicit cycle, challenge and submission lifecycles with audit events.
@@ -103,6 +106,33 @@ The following approved design areas deliberately improve or generalise the histo
 - The portal as system of record, with Teams retained as the social and discussion layer.
 
 These items do not imply that unresolved business rules have been decided.
+
+## Participant Reporting-Surface Decisions
+
+### Reporting-cycle selector
+
+Participant Dashboard, My Team, Individual Leaderboard and XP Activity use an explicit reporting-cycle selector. It defaults to the participant's most recently started enrolled Active cycle; otherwise an enrolled Closing cycle; otherwise the participant's most recently started enrolled cycle.
+
+The selector is presentation/reporting context only and must not affect challenge eligibility, challenge lifecycle or `XPEntry` reporting-cycle attribution.
+
+### Initial dashboard
+
+The initial participant dashboard shows selected-cycle total XP, individual rank, an actionable submission-status summary, recent XP activity, and raid-pass balance as a clearly separate non-XP resource. Trends, charts and deep analytics are excluded from this chunk.
+
+### My Team — BA-004
+
+- **My Cycle Team:** the current open `CycleTeamMember` assignment for the selected cycle.
+- **Challenge Groups:** factual `ChallengeParticipation` snapshots involving the participant.
+
+`CycleTeam` is not inferred from `ChallengeParticipation`, and the two concepts are not merged. This presentation does not calculate team XP or a team leaderboard.
+
+### Individual leaderboard
+
+- Include Active `CycleParticipant`s only for the selected reporting cycle.
+- Keep Active participants with zero XP visible.
+- Exclude Withdrawn and Inactive cycle participants without altering historical XP.
+- Apply competition ranking, so totals `100, 90, 90, 70` receive ranks `1, 2, 2, 4`.
+- Within tied totals, order by normalized `displayName` ascending and then `participantId` ascending; this display ordering does not break the tied rank.
 
 ## Step 7 Evidence Decisions
 
@@ -197,7 +227,7 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | BA-001 | May a multi-beneficiary submission be approved for only the beneficiaries whose evidence is complete? Decision: no; approval is all-or-nothing. | `DECIDED` | Nothing; decision recorded in `DECISIONS.md` |
 | BA-002 | When is solo participation allowed? Decision: explicitly per challenge through `ChallengeTeamPolicy.allowSolo`. | `DECIDED` | Nothing |
 | BA-003 | How are team leaderboard points aggregated, how are bonuses treated, and how are cross-team points attributed? | `BUSINESS_RULE_PENDING` | Team leaderboard calculation |
-| BA-004 | Does `CycleTeam` represent a stable monthly identity distinct from challenge groups? | `OPEN BUSINESS QUESTION` | Final team-management semantics and related UI |
+| BA-004 | Does `CycleTeam` represent a stable cycle identity distinct from challenge groups? Decision: yes for participant presentation; show My Cycle Team and Challenge Groups separately. | `DECIDED` | Nothing; team scoring remains separately blocked by BA-003 |
 | BA-005 | Who may create new submissions or be selected as a beneficiary? Decision: Active `CycleParticipant`s only. | `DECIDED` | Nothing |
 | BA-006 | How do open, due, close and participant overrides determine submission eligibility? Decision recorded. | `DECIDED` | Nothing |
 | BA-007 | Where is authoritative historical score evidence for July Go Pass 3 awards? | `SOURCE EVIDENCE GAP` | Historical Go Pass 3 expansion/re-import |

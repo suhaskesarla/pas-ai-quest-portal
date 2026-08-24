@@ -18,6 +18,13 @@ public sealed class DevelopmentDemoDataSeeder(
     public static readonly Guid ParticipationId = Guid.Parse("60000000-0000-4000-8000-000000000003");
     public static readonly Guid TaskId = Guid.Parse("60000000-0000-4000-8000-000000000004");
     public static readonly Guid AttachmentTaskId = Guid.Parse("60000000-0000-4000-8000-000000000005");
+    public static readonly Guid CycleTeamId = Guid.Parse("60000000-0000-4000-8000-000000000006");
+    public static readonly Guid ParticipantTeamMemberId = Guid.Parse("60000000-0000-4000-8000-000000000007");
+    public static readonly Guid TeammateTeamMemberId = Guid.Parse("60000000-0000-4000-8000-000000000008");
+    public static readonly Guid AwardCategoryId = Guid.Parse("60000000-0000-4000-8000-000000000009");
+    public static readonly Guid ShowcaseXpEntryId = Guid.Parse("60000000-0000-4000-8000-00000000000a");
+    public static readonly Guid RaidSessionId = Guid.Parse("60000000-0000-4000-8000-00000000000b");
+    public static readonly Guid RaidParticipationId = Guid.Parse("60000000-0000-4000-8000-00000000000c");
 
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
@@ -132,6 +139,25 @@ public sealed class DevelopmentDemoDataSeeder(
         attachmentTask.EvidenceRequirement = EvidenceRequirement.Attachment;
         attachmentTask.ScoringMode = ScoringMode.WholeTeam;
         attachmentTask.SortOrder = 2;
+
+        if (await database.CycleTeams.FindAsync([CycleTeamId], cancellationToken) is null)
+            database.CycleTeams.Add(new CycleTeam { Id = CycleTeamId, CycleId = CycleId, Name = "Synthetic Quest Crew", CreatedAt = now });
+        if (await database.CycleTeamMembers.FindAsync([ParticipantTeamMemberId], cancellationToken) is null)
+            database.CycleTeamMembers.Add(new CycleTeamMember { Id = ParticipantTeamMemberId, CycleTeamId = CycleTeamId, CycleId = CycleId, ParticipantId = participant.Id, JoinedAt = now });
+        if (await database.CycleTeamMembers.FindAsync([TeammateTeamMemberId], cancellationToken) is null)
+            database.CycleTeamMembers.Add(new CycleTeamMember { Id = TeammateTeamMemberId, CycleTeamId = CycleTeamId, CycleId = CycleId, ParticipantId = teammate.Id, JoinedAt = now });
+
+        if (await database.AwardCategories.FindAsync([AwardCategoryId], cancellationToken) is null)
+            database.AwardCategories.Add(new AwardCategory { Id = AwardCategoryId, CycleId = CycleId, Code = "DEMO-WELCOME", Name = "Synthetic Welcome Award" });
+        if (await database.XPEntries.FindAsync([ShowcaseXpEntryId], cancellationToken) is null)
+            database.XPEntries.Add(new XPEntry { Id = ShowcaseXpEntryId, ParticipantId = participant.Id, CycleId = CycleId, Amount = 10, EntryType = XPEntryType.Grant, SourceType = XPSourceType.ManualAward, AwardCategoryId = AwardCategoryId, Reason = "Synthetic local-development showcase award", AwardedByParticipantId = manager.Id, AwardedAt = now });
+
+        if (await database.RaidSessions.FindAsync([RaidSessionId], cancellationToken) is null)
+            database.RaidSessions.Add(new RaidSession { Id = RaidSessionId, CycleId = CycleId, Name = "Synthetic Practice Raid", OccurredAt = now.AddDays(-1) });
+        if (await database.RaidEntitlements.FindAsync([participant.Id, CycleId, PassType.Physical], cancellationToken) is null)
+            database.RaidEntitlements.Add(new RaidEntitlement { ParticipantId = participant.Id, CycleId = CycleId, PassType = PassType.Physical, AssignedCount = 2 });
+        if (await database.RaidParticipations.FindAsync([RaidParticipationId], cancellationToken) is null)
+            database.RaidParticipations.Add(new RaidParticipation { Id = RaidParticipationId, ParticipantId = participant.Id, RaidSessionId = RaidSessionId, CycleId = CycleId, PassType = PassType.Physical, UsedAt = now.AddDays(-1) });
 
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

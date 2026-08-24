@@ -38,6 +38,42 @@ Decision required:
 
 ## Resolved
 
+### 2026-08-24 — Participant reporting surfaces and cycle-team presentation (resolves BA-004; amends spec §§3, 6, 10, 16 and 17)
+
+Decided by: User
+
+#### Reporting-cycle context
+
+- Participant Dashboard, My Team, Individual Leaderboard and XP Activity use an explicit reporting-cycle selector.
+- The selector defaults to the participant's most recently started enrolled Active cycle; otherwise an enrolled Closing cycle; otherwise the participant's most recently started enrolled cycle.
+- The selector is presentation/reporting context only. It never affects challenge eligibility, challenge lifecycle or `XPEntry.cycleId` attribution.
+
+#### Initial participant dashboard
+
+- Show total XP for the selected reporting cycle.
+- Show the participant's individual rank.
+- Show an actionable submission-status summary and recent XP activity.
+- Show raid-pass balance as a clearly separate non-XP resource.
+- Do not add trends, charts or deep analytics in this chunk.
+
+#### My Team and BA-004
+
+- `CycleTeam` is the participant's cycle-level team identity.
+- **My Cycle Team** shows the current open `CycleTeamMember` assignment for the selected cycle.
+- **Challenge Groups** separately shows factual `ChallengeParticipation` snapshots involving the participant.
+- Do not infer `CycleTeam` from `ChallengeParticipation`, merge the concepts, calculate team XP or calculate a team leaderboard.
+
+#### Individual leaderboard
+
+- Include Active `CycleParticipant`s only for the selected reporting cycle; Active participants with zero XP remain visible.
+- Exclude Withdrawn and Inactive `CycleParticipant`s from the current leaderboard without changing historical XP.
+- Use competition ranking: totals `100, 90, 90, 70` produce ranks `1, 2, 2, 4`.
+- Within an equal XP total, order deterministically by normalized `displayName` ascending, then `participantId` ascending. This ordering does not break the tie.
+
+This decision resolves BA-004 for participant presentation. Team XP and team-leaderboard scoring remain `BUSINESS_RULE_PENDING` under BA-003.
+
+---
+
 ### 2026-08-24 — All-or-nothing multi-beneficiary approval (resolves BA-001; amends spec §§4 and 7)
 
 Decided by: User

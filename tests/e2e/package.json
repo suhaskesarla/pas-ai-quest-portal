@@ -4,7 +4,8 @@
   "scripts": {
     "test": "playwright test",
     "test:docker-showcase": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1",
-    "test:docker-step7": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-step7.config.ts"
+    "test:docker-step7": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-step7.config.ts",
+    "test:docker-reporting": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-reporting.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1"

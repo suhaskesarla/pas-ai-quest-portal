@@ -5,6 +5,7 @@ import { App } from './App'
 import { AuthProvider } from './auth/AuthContext'
 import { AuthApiError, type AuthApi } from './auth/authApi'
 import type { CurrentUser } from './auth/types'
+import type { ReportingApi } from './reporting/reportingApi'
 
 const participant: CurrentUser = { isAuthenticated: true, participantId: 'p-demo', displayName: 'Avery Demo', roles: ['Quest.Participant'] }
 const manager: CurrentUser = { isAuthenticated: true, participantId: 'm-demo', displayName: 'Morgan Demo', roles: ['Quest.Manager'] }
@@ -22,8 +23,17 @@ function fakeApi(overrides: Partial<AuthApi> = {}): AuthApi {
   }
 }
 
+function fakeReports(): ReportingApi {
+  const cycle = { id: 'cycle-1', code: 'AUG26', name: 'August Quest', status: 'Active' as const, startsAt: '2026-08-01T00:00:00Z', endsAt: '2026-08-31T00:00:00Z', participantStatus: 'Active' as const }
+  return {
+    getReportingCycles: vi.fn().mockResolvedValue({ defaultCycleId: cycle.id, cycles: [cycle] }),
+    getDashboard: vi.fn().mockResolvedValue({ cycle, participant: { participantId: 'p-demo', displayName: 'Avery Demo' }, totalXp: 10, individualRank: 1, eligibleChallengeCount: 1, submissionStatusCounts: {}, raidPassBalance: [], recentActivity: [] }),
+    getTeam: vi.fn().mockResolvedValue({ team: null, challengeGroups: [] }), getIndividualLeaderboard: vi.fn().mockResolvedValue([]), getXpActivity: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
+  }
+}
+
 function renderApp(api: AuthApi, demoModeAvailable = true) {
-  return render(<AuthProvider api={api} demoModeAvailable={demoModeAvailable}><App /></AuthProvider>)
+  return render(<AuthProvider api={api} demoModeAvailable={demoModeAvailable}><App reports={fakeReports()} /></AuthProvider>)
 }
 
 describe('Step 5A authentication shell', () => {
