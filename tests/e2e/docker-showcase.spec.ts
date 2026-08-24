@@ -30,7 +30,7 @@ test('clean Docker Compose bootstrap supports the complete Step 6 showcase', asy
   await expect(page.getByRole('heading', { name: 'Synthetic Shared Challenge' })).toBeVisible()
   await expect(page.getByText('Complete the synthetic shared task')).toBeVisible()
   await captureEvidence(page, 'docker-showcase', '02-participant-challenge.png')
-  await page.getByRole('article').getByRole('button', { name: 'Submit work' }).click()
+  await page.locator('.task-row').filter({ hasText: 'Complete the synthetic shared task' }).getByRole('button', { name: 'Submit work' }).click()
   await expect(page.getByText('Complete participation: Synthetic Participant, Synthetic Teammate')).toBeVisible()
   await page.getByRole('textbox', { name: 'Evidence *' }).fill('Initial Docker showcase evidence')
   await page.getByRole('button', { name: 'Submit for review' }).click()

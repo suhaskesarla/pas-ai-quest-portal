@@ -17,6 +17,7 @@ public sealed class DevelopmentDemoDataSeeder(
     public static readonly Guid ChallengeId = Guid.Parse("60000000-0000-4000-8000-000000000002");
     public static readonly Guid ParticipationId = Guid.Parse("60000000-0000-4000-8000-000000000003");
     public static readonly Guid TaskId = Guid.Parse("60000000-0000-4000-8000-000000000004");
+    public static readonly Guid AttachmentTaskId = Guid.Parse("60000000-0000-4000-8000-000000000005");
 
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
@@ -118,6 +119,19 @@ public sealed class DevelopmentDemoDataSeeder(
         task.EvidenceRequirement = EvidenceRequirement.Text;
         task.ScoringMode = ScoringMode.WholeTeam;
         task.SortOrder = 1;
+
+        ChallengeTask? attachmentTask = await database.ChallengeTasks.FindAsync([AttachmentTaskId], cancellationToken);
+        if (attachmentTask is null)
+        {
+            attachmentTask = new ChallengeTask { Id = AttachmentTaskId, ChallengeId = ChallengeId, Name = "Upload synthetic attachment evidence" };
+            database.ChallengeTasks.Add(attachmentTask);
+        }
+        attachmentTask.Name = "Upload synthetic attachment evidence";
+        attachmentTask.Description = "Demonstrate private attachment review, resubmission, and approval using synthetic files.";
+        attachmentTask.XP = 25;
+        attachmentTask.EvidenceRequirement = EvidenceRequirement.Attachment;
+        attachmentTask.ScoringMode = ScoringMode.WholeTeam;
+        attachmentTask.SortOrder = 2;
 
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

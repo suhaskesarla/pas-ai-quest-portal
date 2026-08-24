@@ -1,5 +1,5 @@
 export type SubmissionStatus = 'Submitted' | 'UnderReview' | 'NeedsEvidence' | 'Resubmitted' | 'Approved' | 'Rejected'
-export type EvidenceInputKind = 'Text' | 'Link'
+export type EvidenceInputKind = 'Text' | 'Link' | 'Attachment'
 
 export type PersonSummary = { participantId: string; displayName: string }
 export type EvidenceInput = { kind: EvidenceInputKind; label: string; required: boolean; instructions?: string }
@@ -32,7 +32,22 @@ export type EligibleChallenge = {
   ineligibilityReason?: string
   tasks: TaskSummary[]
 }
-export type EvidenceItem = { id?: string; kind: EvidenceInputKind; label: string; value: string }
+export type TextOrLinkEvidenceItem = { id?: string; kind: 'Text' | 'Link'; label: string; value: string; createdAt?: string }
+export type AttachmentEvidenceItem = {
+  id: string
+  kind: 'Attachment'
+  label: string
+  originalFileName: string
+  mimeType: string
+  sizeBytes: number
+  createdAt: string
+  contentUrl: string
+}
+export type EvidenceItem = TextOrLinkEvidenceItem | AttachmentEvidenceItem
+export type EvidenceRequestItem =
+  | { kind: 'Text' | 'Link'; label: string; value: string }
+  | { kind: 'Attachment'; label: string; fileKey: string }
+export type EvidenceUpload = { fileKey: string; file: File }
 export type SubmissionEvent = { eventType: SubmissionStatus; comment?: string; actorDisplayName: string; occurredAt: string }
 export type SubmissionView = {
   id: string
@@ -53,7 +68,7 @@ export type SubmissionView = {
   history: SubmissionEvent[]
 }
 
-export type SubmitRequest = { challengeId: string; taskId: string; challengeParticipationId?: string; beneficiaryIds: string[]; evidence: Omit<EvidenceItem, 'id'>[]; comment?: string }
-export type ResubmitRequest = { version: string; evidence: Omit<EvidenceItem, 'id'>[]; comment?: string }
+export type SubmitRequest = { challengeId: string; taskId: string; challengeParticipationId?: string; beneficiaryIds: string[]; evidence: EvidenceRequestItem[]; comment?: string }
+export type ResubmitRequest = { version: string; evidence: EvidenceRequestItem[]; comment?: string }
 export type ReviewAction = 'NeedsEvidence' | 'Approve' | 'Reject'
 export type ReviewRequest = { version: string; action: ReviewAction; comment?: string }

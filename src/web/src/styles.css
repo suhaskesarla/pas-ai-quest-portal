@@ -86,6 +86,13 @@ legend { padding: 0 6px; font-weight: 700; }
 .evidence-list h4 { margin: 0 0 8px; }
 .evidence-list > div { display: grid; grid-template-columns: minmax(100px, .3fr) 1fr; gap: 10px; padding: 5px 0; font-size: 12px; }
 .evidence-list a { color: #1b5fce; overflow-wrap: anywhere; }
+.attachment-metadata { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.attachment-metadata small { color: #667085; }
+.attachment-picker { padding: 12px; border: 1px dashed #9eb3d3; border-radius: 9px; background: #f7f9fc; }
+.attachment-picker > label { font-weight: 700; }
+.attachment-picker input[type='file'] { padding: 8px 0; }
+.attachment-picker ul { list-style: none; padding: 0; margin: 8px 0 0; }
+.attachment-picker li { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-top: 1px solid #d9dee7; font-size: 12px; }
 .resubmit { margin-top: 16px; padding-top: 14px; border-top: 1px solid #dfe3e8; }
 .review-people { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }
 .review-people p { display: grid; gap: 3px; }

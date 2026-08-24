@@ -104,6 +104,62 @@ The following approved design areas deliberately improve or generalise the histo
 
 These items do not imply that unresolved business rules have been decided.
 
+## Step 7 Evidence Decisions
+
+### Evidence requirement semantics
+
+| Requirement | Permitted evidence |
+|-------------|--------------------|
+| `None` | No evidence required |
+| `Text` | Text only |
+| `Link` | Link only |
+| `Attachment` | Attachment only |
+| `Multiple` | A combination of supported Text, Link and Attachment evidence |
+| `Custom` | Deferred from the initial Step 7 showcase pending explicit machine-readable validation semantics |
+
+A specific evidence requirement does not permit arbitrary evidence types.
+
+### Visibility and non-disclosure
+
+- Step 7 evidence content is accessible only to the submission claimant and authorized `Quest.Manager` users.
+- A beneficiary who is not the claimant does not receive evidence-content access.
+- Unknown and unauthorized evidence IDs must not disclose existence.
+
+### Resubmission attachments
+
+- Existing accepted attachments are immutable and retained.
+- Resubmission may append attachments to the same logical submission; it does not automatically remove or physically replace existing attachments.
+- Text/link evidence retains the Step 6 replacement semantics.
+- Failed resubmission leaves existing evidence unchanged.
+- Attachment deletion and supersession are deferred pending retention/audit policy.
+
+### Initial configurable validation policy
+
+- Maximum 5 attachments per request.
+- Maximum 25 MiB per file.
+- Maximum 50 MiB combined per request.
+- Allowed MIME types: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`, `text/plain`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `application/vnd.openxmlformats-officedocument.presentationml.presentation`, `video/mp4`.
+
+These are configurable technical defaults and do not resolve evidence-retention policy.
+
+### Malware scanning
+
+- Step 7 introduces `IEvidenceMalwareScanner`.
+- Development/Test may use an explicitly identified deterministic pass-through scanner.
+- No quarantine or pending-state persistence is required in Step 7.
+- Detected malware rejects the request and scanner failure fails closed.
+- Production attachments must not start or be enabled without a real configured scanner.
+- Real production scanner integration is deferred to production-readiness work.
+
+### Preserved deferrals
+
+- Evidence retention/deletion (`BA-010`, `POLICY_PENDING`).
+- `Custom` evidence semantics.
+- Real Entra.
+- Teams integration.
+- Team leaderboard (`BA-003`, `BUSINESS_RULE_PENDING`).
+- Score disputes (`BA-008`).
+
 ## CSV Source Rules
 
 Future import and reconciliation work must preserve these historical conventions:
@@ -160,6 +216,9 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | Solo challenge participation | **BA-002 RESOLVED — SAFE TO IMPLEMENT** |
 | Manager review ownership | **BA-009 RESOLVED — SAFE TO IMPLEMENT** |
 | Beneficiary-specific XP correction | **DECIDED — SAFE TO IMPLEMENT USING THE APPROVED APPEND-ONLY LEDGER** |
+| Step 7 evidence/attachment capability | **BUSINESS READY** |
+| `Custom` evidence validation | **DEFERRED — NOT IN INITIAL STEP 7 SHOWCASE** |
+| Production malware-scanner integration | **DEFERRED TO PRODUCTION READINESS; PRODUCTION ATTACHMENTS MUST REMAIN DISABLED WITHOUT IT** |
 | Historical Go Pass 3 expansion/re-import | **BLOCKED ON BA-007** |
 | Team leaderboard | **BLOCKED ON BA-003** |
 | Evidence retention implementation | **BLOCKED ON BA-010** |

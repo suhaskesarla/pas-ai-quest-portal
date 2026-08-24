@@ -115,6 +115,63 @@ Implementation note: Use the approved `XPEntry` Reversal/Correction architecture
 
 ---
 
+### 2026-08-24 — Step 7 evidence and attachment rules (amends spec §§8 and 13)
+
+Decided by: User
+
+#### Evidence requirement semantics
+
+- `None`: no evidence required.
+- `Text`: Text evidence only.
+- `Link`: Link evidence only.
+- `Attachment`: Attachment evidence only.
+- `Multiple`: may combine supported Text, Link and Attachment evidence.
+- `Custom` is excluded from the initial Step 7 showcase until machine-readable validation semantics are explicitly defined.
+- A specific evidence requirement does not permit arbitrary evidence types.
+
+#### Evidence visibility
+
+- Evidence content is accessible only to the submission claimant and authorized `Quest.Manager` users in Step 7.
+- Submission beneficiaries who are not the claimant do not receive evidence-content access.
+- Unknown and unauthorized evidence IDs must not disclose whether the evidence exists.
+
+#### Resubmission attachments
+
+- Existing accepted attachments are immutable and retained.
+- Resubmission may append new attachments to the same logical submission.
+- Existing attachments are not automatically removed or physically replaced.
+- Text/link evidence retains the Step 6 replacement semantics.
+- A failed resubmission leaves existing evidence unchanged.
+- Attachment deletion and supersession remain deferred until retention/audit policy is decided.
+
+#### Initial configurable validation policy
+
+- Maximum 5 attachments per request.
+- Maximum 25 MiB per file.
+- Maximum 50 MiB combined per request.
+- Initial MIME allowlist: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`, `text/plain`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `application/vnd.openxmlformats-officedocument.presentationml.presentation`, `video/mp4`.
+- These limits and MIME types are configurable technical defaults, not retention policy.
+
+#### Malware scanning
+
+- Step 7 introduces `IEvidenceMalwareScanner`.
+- Development/Test may use an explicitly identified deterministic pass-through scanner.
+- Step 7 does not require quarantine or pending-state persistence.
+- Detected malware rejects the request; scanner failure fails closed.
+- Production attachment capability must not start or be enabled without a real configured scanner.
+- Real production scanner integration may be completed during production-readiness work.
+
+#### Explicit deferrals
+
+- Evidence retention and deletion.
+- `Custom` evidence semantics.
+- Real Entra.
+- Teams integration.
+- Team leaderboard.
+- Score disputes.
+
+---
+
 *(When §10 is answered, add an entry below in this format:)*
 
 ```

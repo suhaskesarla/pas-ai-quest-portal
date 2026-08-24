@@ -1,11 +1,12 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ActivityList, ChallengeList, ReviewQueue, SubmissionForm } from './WorkflowViews'
-import { WorkflowApiError, type WorkflowApi } from './workflowApi'
-import type { EligibleChallenge, SubmissionStatus, SubmissionView } from './types'
+import type { CurrentUser } from '../auth/types'
+import { ActivityList, attachmentPolicy, ChallengeList, ReviewQueue, SubmissionForm, validateAttachments } from './WorkflowViews'
+import { requestBody, WorkflowApiError, workflowErrorMessage, type WorkflowApi } from './workflowApi'
+import type { EligibleChallenge, EvidenceInputKind, SubmissionStatus, SubmissionView } from './types'
 
-afterEach(() => { cleanup(); vi.restoreAllMocks() })
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 const people = [{ participantId: 'p1', displayName: 'Avery Demo' }, { participantId: 'p2', displayName: 'Jordan Demo' }]
 const secondGroup = [{ participantId: 'p1', displayName: 'Avery Demo' }, { participantId: 'p3', displayName: 'Riley Demo' }]
@@ -15,7 +16,13 @@ const challenge: EligibleChallenge = {
   tasks: [{ id: 't1', name: 'Prompt journal', xp: 10, scoringMode: 'ClaimantSelectsBeneficiaries', participations: [
     { participationId: 'part-a', members: people, claimantIsMember: true, requiresCompleteParticipation: false, allowsBeneficiarySubset: true },
     { participationId: 'part-b', members: secondGroup, claimantIsMember: true, requiresCompleteParticipation: false, allowsBeneficiarySubset: true },
-  ], evidenceInputs: [{ kind: 'Text', label: 'What you learned', required: true }, { kind: 'Link', label: 'Supporting link', required: false }] }],
+  ], evidenceInputs: [{ kind: 'Text', label: 'What you learned', required: true }] }],
+}
+const currentUser: CurrentUser = { isAuthenticated: true, participantId: 'p1', displayName: 'Avery Demo', roles: ['Quest.Participant'] }
+const sizedFile = (name: string, type: string, size: number) => {
+  const file = new File(['x'], name, { type })
+  Object.defineProperty(file, 'size', { value: size })
+  return file
 }
 
 function submission(status: SubmissionStatus = 'Submitted'): SubmissionView {
@@ -29,6 +36,38 @@ function api(overrides: Partial<WorkflowApi> = {}): WorkflowApi {
 }
 
 describe('participant workflow', () => {
+  it('renders only the controls permitted by each frozen evidence requirement', () => {
+    const base = challenge.tasks[0]
+    const cases = [
+      { name: 'None', inputs: [], field: null, file: false },
+      { name: 'Text', inputs: [{ kind: 'Text' as const, label: 'Text evidence', required: true }], field: 'Text evidence *', file: false },
+      { name: 'Link', inputs: [{ kind: 'Link' as const, label: 'Link evidence', required: true }], field: 'Link evidence *', file: false },
+      { name: 'Attachment', inputs: [{ kind: 'Attachment' as const, label: 'Attachments', required: true }], field: null, file: true },
+      { name: 'Multiple', inputs: [{ kind: 'Text' as const, label: 'Text evidence', required: false }, { kind: 'Link' as const, label: 'Link evidence', required: false }, { kind: 'Attachment' as const, label: 'Attachments', required: false }], field: 'Text evidence', file: true },
+    ]
+    cases.forEach(({ inputs, field, file }) => {
+      const view = render(<SubmissionForm currentUser={currentUser} challenge={challenge} task={{ ...base, evidenceInputs: inputs }} api={api()} onSubmitted={vi.fn()} onCancel={vi.fn()} />)
+      if (field) expect(screen.getByLabelText(field)).toBeInTheDocument()
+      else expect(screen.queryByLabelText(/evidence/i)).not.toBeInTheDocument()
+      expect(Boolean(document.querySelector('input[type="file"]'))).toBe(file)
+      view.unmount()
+    })
+  })
+
+  it('exposes only the supported Step 7 evidence input kinds (Custom is absent)', () => {
+    const supportedKinds: EvidenceInputKind[] = ['Text', 'Link', 'Attachment']
+    expect(supportedKinds).not.toContain('Custom')
+  })
+
+  it('rejects attachment count, individual size, combined size, and unsupported MIME locally', () => {
+    const valid = sizedFile('proof.pdf', 'application/pdf', 1024)
+    expect(validateAttachments([valid])).toBeNull()
+    expect(validateAttachments(Array.from({ length: 6 }, (_, index) => sizedFile(`${index}.pdf`, 'application/pdf', 1)))).toMatch(/no more than 5/)
+    expect(validateAttachments([sizedFile('large.pdf', 'application/pdf', attachmentPolicy.maxFileBytes + 1)])).toMatch(/25 MiB/)
+    expect(validateAttachments([sizedFile('a.mp4', 'video/mp4', 25 * 1024 * 1024), sizedFile('b.mp4', 'video/mp4', 25 * 1024 * 1024), sizedFile('c.txt', 'text/plain', 1)])).toMatch(/50 MiB/)
+    expect(validateAttachments([sizedFile('script.exe', 'application/x-msdownload', 1)])).toMatch(/unsupported file type/)
+  })
+
   it('shows eligible challenge dates, task XP, evidence expectations, and opens task flow', async () => {
     const onSelect = vi.fn(); const user = userEvent.setup()
     render(<ChallengeList challenges={[challenge]} loading={false} error={null} onSelectTask={onSelect} />)
@@ -68,7 +107,7 @@ describe('participant workflow', () => {
     await user.type(screen.getByLabelText(/What you learned/), 'Scoped evidence')
     await user.click(screen.getByRole('button', { name: 'Submit for review' }))
     await waitFor(() => expect(service.createSubmission).toHaveBeenCalled())
-    expect(service.createSubmission).toHaveBeenCalledWith(expect.objectContaining({ challengeParticipationId: 'part-b', beneficiaryIds: ['p1', 'p3'] }))
+    expect(service.createSubmission).toHaveBeenCalledWith(expect.objectContaining({ challengeParticipationId: 'part-b', beneficiaryIds: ['p1', 'p3'] }), [])
   })
 
   it('automatically uses the complete selected participation for WholeTeam', async () => {
@@ -80,7 +119,7 @@ describe('participant workflow', () => {
     await user.type(screen.getByLabelText(/What you learned/), 'Whole team evidence')
     await user.click(screen.getByRole('button', { name: 'Submit for review' }))
     await waitFor(() => expect(service.createSubmission).toHaveBeenCalled())
-    expect(service.createSubmission).toHaveBeenCalledWith(expect.objectContaining({ challengeParticipationId: 'part-a', beneficiaryIds: ['p1', 'p2'] }))
+    expect(service.createSubmission).toHaveBeenCalledWith(expect.objectContaining({ challengeParticipationId: 'part-a', beneficiaryIds: ['p1', 'p2'] }), [])
   })
 
   it('submits only after API confirmation with claimant and beneficiary context', async () => {
@@ -90,7 +129,7 @@ describe('participant workflow', () => {
     await user.type(screen.getByLabelText(/What you learned/), 'Useful synthetic evidence')
     await user.click(screen.getByRole('button', { name: 'Submit for review' }))
     await waitFor(() => expect(completed).toHaveBeenCalled())
-    expect(service.createSubmission).toHaveBeenCalledWith(expect.objectContaining({ beneficiaryIds: ['p1', 'p2'] }))
+    expect(service.createSubmission).toHaveBeenCalledWith(expect.objectContaining({ beneficiaryIds: ['p1', 'p2'] }), [])
   })
 
   it.each(['NeedsEvidence', 'Approved', 'Rejected'] as SubmissionStatus[])('renders %s status clearly', (status) => {
@@ -143,9 +182,25 @@ describe('participant workflow', () => {
     await user.type(screen.getByLabelText('Response to manager'), 'Updated for everyone')
     await user.click(screen.getByRole('button', { name: 'Resubmit shared submission' }))
     await waitFor(() => expect(refresh).toHaveBeenCalled())
-    expect(service.resubmit).toHaveBeenCalledWith('s1', expect.objectContaining({ version: 'v1' }))
-    expect(service.resubmit).toHaveBeenCalledWith('s1', expect.objectContaining({ evidence: [{ kind: 'Text', label: 'What you learned', value: 'Replacement evidence set' }] }))
-    expect(screen.getByText(/replaces the current evidence set/)).toBeInTheDocument()
+    expect(service.resubmit).toHaveBeenCalledWith('s1', expect.objectContaining({ version: 'v1' }), [])
+    expect(service.resubmit).toHaveBeenCalledWith('s1', expect.objectContaining({ evidence: [{ kind: 'Text', label: 'What you learned', value: 'Replacement evidence set' }] }), [])
+    expect(screen.getByText(/replaces the current text\/link set/)).toBeInTheDocument()
+  })
+
+  it('shows retained attachment metadata and can append a new attachment on resubmission', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'opaque-file-key' })
+    const needsEvidence = submission('NeedsEvidence')
+    needsEvidence.evidence = [{ id: 'a1', kind: 'Attachment', label: 'Screenshot', originalFileName: 'existing-proof.png', mimeType: 'image/png', sizeBytes: 2048, createdAt: '2026-08-10T01:00:00Z', contentUrl: '/api/evidence/a1/content' }]
+    const service = api(); const refresh = vi.fn().mockResolvedValue(undefined); const user = userEvent.setup()
+    render(<ActivityList submissions={[needsEvidence]} loading={false} error={null} api={service} onRefresh={refresh} />)
+    expect(screen.getByRole('link', { name: 'existing-proof.png' })).toHaveAttribute('href', '/api/evidence/a1/content')
+    expect(screen.getByText(/Existing accepted attachments are retained/)).toBeInTheDocument()
+    const added = new File(['new evidence'], 'new-proof.pdf', { type: 'application/pdf' })
+    await user.upload(screen.getByLabelText('Attachments'), added)
+    await user.click(screen.getByRole('button', { name: 'Resubmit shared submission' }))
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    expect(service.resubmit).toHaveBeenCalledWith('s1', expect.objectContaining({ evidence: [{ kind: 'Attachment', label: 'Additional attachment', fileKey: 'opaque-file-key' }] }), [{ fileKey: 'opaque-file-key', file: added }])
+    vi.unstubAllGlobals()
   })
 
   it('shows deadline/eligibility API failure and never reports false success', async () => {
@@ -155,6 +210,42 @@ describe('participant workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Submit for review' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('deadline has passed')
     expect(completed).not.toHaveBeenCalled()
+  })
+
+  it('retains a selected attachment and does not show success when upload fails', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'failed-file-key' })
+    const task = { ...challenge.tasks[0], evidenceInputs: [{ kind: 'Attachment' as const, label: 'Proof files', required: true }] }
+    const completed = vi.fn(); const service = api({ createSubmission: vi.fn().mockRejectedValue(new WorkflowApiError(503)) }); const user = userEvent.setup()
+    render(<SubmissionForm currentUser={currentUser} challenge={challenge} task={task} api={service} onSubmitted={completed} onCancel={vi.fn()} />)
+    const file = new File(['proof'], 'retry-proof.pdf', { type: 'application/pdf' })
+    await user.upload(screen.getByLabelText('Attachments'), file)
+    await user.click(screen.getByRole('button', { name: 'Submit for review' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('temporarily unavailable')
+    expect(screen.getByText('retry-proof.pdf')).toBeInTheDocument()
+    expect(completed).not.toHaveBeenCalled()
+  })
+})
+
+describe('attachment request contract', () => {
+  it('builds one multipart body with an application/json payload Blob and matching opaque file parts', async () => {
+    const file = new File(['evidence'], 'proof.pdf', { type: 'application/pdf' })
+    const payload = { challengeId: 'c1', taskId: 't1', beneficiaryIds: ['p1'], evidence: [{ kind: 'Attachment' as const, label: 'Proof', fileKey: 'opaque-1' }] }
+    const body = requestBody(payload, [{ fileKey: 'opaque-1', file }])
+    expect(body).toBeInstanceOf(FormData)
+    const payloadPart = (body as FormData).get('payload')
+    expect(payloadPart).toBeInstanceOf(Blob)
+    expect((payloadPart as Blob).type).toBe('application/json')
+    expect(JSON.parse(await (payloadPart as Blob).text())).toEqual(payload)
+    expect((body as FormData).get('opaque-1')).toEqual(file)
+  })
+
+  it('keeps text/link requests JSON-only', () => {
+    const payload = { challengeId: 'c1', taskId: 't1', beneficiaryIds: ['p1'], evidence: [{ kind: 'Text' as const, label: 'Evidence', value: 'Done' }] }
+    expect(requestBody(payload, [])).toBe(JSON.stringify(payload))
+  })
+
+  it.each([[409, 'changed elsewhere'], [413, 'too large'], [415, 'not supported'], [422, 'Check the submission'], [503, 'temporarily unavailable']] as const)('maps attachment API status %s', (status, expected) => {
+    expect(workflowErrorMessage(new WorkflowApiError(status))).toContain(expected)
   })
 })
 

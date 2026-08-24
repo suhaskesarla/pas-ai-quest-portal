@@ -1,11 +1,28 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { CurrentUser } from '../auth/types'
 import type { WorkflowApi } from './workflowApi'
 import { workflowErrorMessage } from './workflowApi'
-import type { EligibleChallenge, EvidenceInput, EvidenceItem, ReviewAction, SubmissionView, TaskSummary } from './types'
+import type { EligibleChallenge, EvidenceInput, EvidenceItem, EvidenceRequestItem, EvidenceUpload, ReviewAction, SubmissionView, TaskSummary } from './types'
 
 const statusLabels = { Submitted: 'Submitted', UnderReview: 'Under review', NeedsEvidence: 'Needs evidence', Resubmitted: 'Resubmitted', Approved: 'Approved', Rejected: 'Rejected' }
 const formatDate = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+const MiB = 1024 * 1024
+export const attachmentPolicy = {
+  maxFiles: 5,
+  maxFileBytes: 25 * MiB,
+  maxCombinedBytes: 50 * MiB,
+  allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'video/mp4'],
+} as const
+const formatSize = (bytes: number) => bytes >= MiB ? `${(bytes / MiB).toFixed(1)} MiB` : `${Math.max(1, Math.ceil(bytes / 1024))} KiB`
+
+export function validateAttachments(files: File[]): string | null {
+  if (files.length > attachmentPolicy.maxFiles) return `Choose no more than ${attachmentPolicy.maxFiles} attachments per request.`
+  const oversized = files.find((file) => file.size > attachmentPolicy.maxFileBytes)
+  if (oversized) return `${oversized.name} exceeds the 25 MiB per-file limit.`
+  if (files.reduce((total, file) => total + file.size, 0) > attachmentPolicy.maxCombinedBytes) return 'The selected attachments exceed the 50 MiB combined limit.'
+  const unsupported = files.find((file) => !attachmentPolicy.allowedMimeTypes.includes(file.type as typeof attachmentPolicy.allowedMimeTypes[number]))
+  return unsupported ? `${unsupported.name} has an unsupported file type (${unsupported.type || 'unknown'}).` : null
+}
 
 export function StatusBadge({ status }: { status: SubmissionView['status'] }) {
   return <span className={`workflow-status workflow-status--${status.toLowerCase()}`}>{statusLabels[status]}</span>
@@ -26,16 +43,34 @@ export function ChallengeList({ challenges, loading, error, onSelectTask }: { ch
 }
 
 function EvidenceFields({ inputs, values, onChange }: { inputs: EvidenceInput[]; values: Record<string, string>; onChange: (key: string, value: string) => void }) {
-  return <>{inputs.map((input, index) => { const key = `${input.kind}:${index}`; return <label className="field" key={key}><span>{input.label}{input.required ? ' *' : ''}</span>{input.instructions && <small>{input.instructions}</small>}
+  return <>{inputs.filter((input) => input.kind !== 'Attachment').map((input, index) => { const key = `${input.kind}:${index}`; return <label className="field" key={key}><span>{input.label}{input.required ? ' *' : ''}</span>{input.instructions && <small>{input.instructions}</small>}
     {input.kind === 'Text' ? <textarea rows={4} value={values[key] ?? ''} onChange={(event) => onChange(key, event.target.value)} /> : <input type="url" placeholder="https://…" value={values[key] ?? ''} onChange={(event) => onChange(key, event.target.value)} />}
   </label> })}</>
 }
 
-function evidenceFrom(inputs: EvidenceInput[], values: Record<string, string>): Omit<EvidenceItem, 'id'>[] {
-  return inputs.map((input, index) => ({ kind: input.kind, label: input.label, value: (values[`${input.kind}:${index}`] ?? '').trim() })).filter((item) => item.value)
+function evidenceFrom(inputs: EvidenceInput[], values: Record<string, string>): EvidenceRequestItem[] {
+  return inputs.filter((input) => input.kind !== 'Attachment').map((input, index) => ({ kind: input.kind as 'Text' | 'Link', label: input.label, value: (values[`${input.kind}:${index}`] ?? '').trim() })).filter((item) => item.value)
+}
+
+function AttachmentPicker({ files, onChange, problem }: { files: File[]; onChange: (files: File[], problem: string | null) => void; problem: string | null }) {
+  const inputId = useId()
+  return <div className="field attachment-picker"><label htmlFor={inputId}><span>Attachments</span></label><input id={inputId} type="file" multiple accept={attachmentPolicy.allowedMimeTypes.join(',')} onChange={(event) => {
+    const selected = Array.from(event.currentTarget.files ?? [])
+    onChange(selected, validateAttachments(selected))
+  }} />
+    <small>Up to 5 files, 25 MiB each and 50 MiB combined.</small>
+    {files.length > 0 && <ul>{files.map((file) => <li key={`${file.name}-${file.size}-${file.lastModified}`}><span>{file.name}</span><span>{formatSize(file.size)}</span></li>)}</ul>}
+    {problem && <div className="inline-error" role="alert">{problem}</div>}
+  </div>
+}
+
+function attachmentRequest(files: File[], label = 'Attachment'): { evidence: EvidenceRequestItem[]; uploads: EvidenceUpload[] } {
+  const uploads = files.map((file) => ({ fileKey: crypto.randomUUID(), file }))
+  return { evidence: uploads.map(({ fileKey }) => ({ kind: 'Attachment', label, fileKey })), uploads }
 }
 
 export function SubmissionForm({ currentUser, challenge, task, api, onSubmitted, onCancel }: { currentUser: CurrentUser; challenge: EligibleChallenge; task: TaskSummary; api: WorkflowApi; onSubmitted: () => void; onCancel: () => void }) {
+  const evidenceInputs = task.evidenceInputs
   const firstParticipation = task.participations[0]
   const initialBeneficiaries = firstParticipation?.requiresCompleteParticipation
     ? firstParticipation?.members.map((member) => member.participantId) ?? []
@@ -43,6 +78,8 @@ export function SubmissionForm({ currentUser, challenge, task, api, onSubmitted,
   const [participationId, setParticipationId] = useState(firstParticipation?.participationId ?? '')
   const [beneficiaries, setBeneficiaries] = useState<string[]>(initialBeneficiaries)
   const [values, setValues] = useState<Record<string, string>>({})
+  const [files, setFiles] = useState<File[]>([])
+  const [fileProblem, setFileProblem] = useState<string | null>(null)
   const [comment, setComment] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -51,15 +88,22 @@ export function SubmissionForm({ currentUser, challenge, task, api, onSubmitted,
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    const missingEvidence = task.evidenceInputs.some((input, index) => input.required && !(values[`${input.kind}:${index}`] ?? '').trim())
-    if (!beneficiaries.length || missingEvidence) {
-      setError(!beneficiaries.length ? 'Choose at least one beneficiary.' : 'Complete every required evidence field.')
+    const structuredInputs = evidenceInputs.filter((input) => input.kind !== 'Attachment')
+    const structuredEvidence = evidenceFrom(evidenceInputs, values)
+    const missingStructuredEvidence = structuredInputs.some((input, index) => input.required && !(values[`${input.kind}:${index}`] ?? '').trim())
+    const attachmentRequired = evidenceInputs.some((input) => input.kind === 'Attachment' && input.required)
+    const isMultiple = new Set(evidenceInputs.map((input) => input.kind)).size > 1
+    const suppliedKinds = new Set([...structuredEvidence.map((item) => item.kind), ...(files.length ? ['Attachment' as const] : [])])
+    const missingEvidence = missingStructuredEvidence || (attachmentRequired && !files.length) || (isMultiple && suppliedKinds.size < 2)
+    if (!beneficiaries.length || missingEvidence || fileProblem) {
+      setError(!beneficiaries.length ? 'Choose at least one beneficiary.' : isMultiple && suppliedKinds.size < 2 ? 'Provide at least two supported evidence types for this task.' : 'Complete every required evidence field.')
       queueMicrotask(() => errorRef.current?.focus())
       return
     }
     setPending(true); setError(null)
     try {
-      await api.createSubmission({ challengeId: challenge.id, taskId: task.id, challengeParticipationId: participationId || undefined, beneficiaryIds: beneficiaries, evidence: evidenceFrom(task.evidenceInputs, values), comment: comment.trim() || undefined })
+      const attachments = attachmentRequest(files, evidenceInputs.find((input) => input.kind === 'Attachment')?.label)
+      await api.createSubmission({ challengeId: challenge.id, taskId: task.id, challengeParticipationId: participationId || undefined, beneficiaryIds: beneficiaries, evidence: [...structuredEvidence, ...attachments.evidence], comment: comment.trim() || undefined }, attachments.uploads)
       onSubmitted()
     } catch (requestError) {
       setError(workflowErrorMessage(requestError)); queueMicrotask(() => errorRef.current?.focus())
@@ -80,15 +124,18 @@ export function SubmissionForm({ currentUser, challenge, task, api, onSubmitted,
       : selectedParticipation?.requiresCompleteParticipation
         ? <><p className="participation-members">Complete participation: {selectedParticipation.members.map((person) => person.displayName).join(', ')}</p><p className="shared-note">Whole-team submissions always include every member of the selected participation.</p></>
         : selectedParticipation?.allowsBeneficiarySubset && selectedParticipation.members.map((person) => <label className="check-row" key={person.participantId}><input type="checkbox" checked={beneficiaries.includes(person.participantId)} disabled={person.participantId === currentUser.participantId} onChange={(event) => setBeneficiaries((current) => event.target.checked ? [...new Set([...current, person.participantId])] : current.filter((id) => id !== person.participantId))} />{person.displayName}</label>)}</fieldset>
-    <EvidenceFields inputs={task.evidenceInputs} values={values} onChange={(key, value) => setValues((current) => ({ ...current, [key]: value }))} />
+    <EvidenceFields inputs={evidenceInputs} values={values} onChange={(key, value) => setValues((current) => ({ ...current, [key]: value }))} />
+    {evidenceInputs.some((input) => input.kind === 'Attachment') && <AttachmentPicker files={files} problem={fileProblem} onChange={(nextFiles, problem) => { setFiles(nextFiles); setFileProblem(problem) }} />}
     <label className="field"><span>Comment (optional)</span><textarea rows={3} value={comment} onChange={(event) => setComment(event.target.value)} /></label>
     {error && <div className="inline-error" role="alert" tabIndex={-1} ref={errorRef}>{error}</div>}
-    <div className="form-actions"><button className="button button--quiet" type="button" onClick={onCancel} disabled={pending}>Cancel</button><button className="button" type="submit" disabled={pending}>{pending ? 'Submitting…' : 'Submit for review'}</button></div>
+    <div className="form-actions"><button className="button button--quiet" type="button" onClick={onCancel} disabled={pending}>Cancel</button><button className="button" type="submit" disabled={pending}>{pending ? files.length ? 'Uploading evidence…' : 'Submitting…' : 'Submit for review'}</button></div>
   </form>
 }
 
 function EvidenceList({ evidence }: { evidence: EvidenceItem[] }) {
-  return <div className="evidence-list"><h4>Evidence</h4>{evidence.length ? evidence.map((item, index) => <div key={item.id ?? `${item.kind}-${index}`}><strong>{item.label}</strong>{item.kind === 'Link' ? <a href={item.value} rel="noreferrer">{item.value}</a> : <span>{item.value}</span>}</div>) : <p>No evidence items.</p>}</div>
+  return <div className="evidence-list"><h4>Evidence</h4>{evidence.length ? evidence.map((item, index) => <div key={item.id ?? `${item.kind}-${index}`}><strong>{item.label}</strong>{item.kind === 'Attachment'
+    ? <span className="attachment-metadata"><a href={item.contentUrl} target="_blank" rel="noreferrer">{item.originalFileName}</a><small>{formatSize(item.sizeBytes)} · {item.mimeType} · added {formatDate(item.createdAt)}</small></span>
+    : item.kind === 'Link' ? <a href={item.value} rel="noreferrer">{item.value}</a> : <span>{item.value}</span>}</div>) : <p>No evidence items.</p>}</div>
 }
 
 export function ActivityList({ submissions, loading, error, api, onRefresh }: { submissions: SubmissionView[]; loading: boolean; error: string | null; api: WorkflowApi; onRefresh: () => Promise<void> }) {
@@ -117,13 +164,18 @@ function SubmissionHistory({ history }: { history: SubmissionView['history'] }) 
 }
 
 function ResubmitForm({ submission, api, onRefresh }: { submission: SubmissionView; api: WorkflowApi; onRefresh: () => Promise<void> }) {
-  const inputs = submission.evidence.map((item) => ({ kind: item.kind, label: item.label, required: true }))
-  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(submission.evidence.map((item, index) => [`${item.kind}:${index}`, item.value])))
+  const currentStructured = submission.evidence.filter((item) => item.kind !== 'Attachment')
+  const evidenceKinds = new Set(submission.evidence.map((item) => item.kind))
+  const acceptsAttachments = evidenceKinds.has('Attachment') || evidenceKinds.size > 1
+  const inputs: EvidenceInput[] = [...currentStructured.map((item) => ({ kind: item.kind, label: item.label, required: true })), ...(acceptsAttachments ? [{ kind: 'Attachment' as const, label: 'Additional attachments', required: false }] : [])]
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(currentStructured.map((item, index) => [`${item.kind}:${index}`, item.value])))
+  const [files, setFiles] = useState<File[]>([])
+  const [fileProblem, setFileProblem] = useState<string | null>(null)
   const [comment, setComment] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
-  const submit = async (event: React.FormEvent) => { event.preventDefault(); setPending(true); setError(null); try { await api.resubmit(submission.id, { version: submission.version, evidence: evidenceFrom(inputs, values), comment: comment.trim() || undefined }); await onRefresh() } catch (requestError) { setError(workflowErrorMessage(requestError)) } finally { setPending(false) } }
-  return <form className="resubmit" onSubmit={submit}><h4>Update evidence</h4><p>The evidence below replaces the current evidence set for this submission.</p><EvidenceFields inputs={inputs} values={values} onChange={(key, value) => setValues((current) => ({ ...current, [key]: value }))} /><label className="field"><span>Response to manager</span><textarea rows={2} value={comment} onChange={(event) => setComment(event.target.value)} /></label>{error && <div className="inline-error" role="alert">{error}</div>}<button className="button" disabled={pending}>{pending ? 'Resubmitting…' : 'Resubmit shared submission'}</button></form>
+  const submit = async (event: React.FormEvent) => { event.preventDefault(); if (fileProblem) { setError('Resolve the attachment validation problem before resubmitting.'); return } setPending(true); setError(null); try { const attachments = attachmentRequest(files, 'Additional attachment'); await api.resubmit(submission.id, { version: submission.version, evidence: [...evidenceFrom(inputs, values), ...attachments.evidence], comment: comment.trim() || undefined }, attachments.uploads); await onRefresh() } catch (requestError) { setError(workflowErrorMessage(requestError)) } finally { setPending(false) } }
+  return <form className="resubmit" onSubmit={submit}><h4>Update evidence</h4><p>Text and link evidence below replaces the current text/link set. Existing accepted attachments are retained and cannot be removed here.</p><EvidenceFields inputs={inputs} values={values} onChange={(key, value) => setValues((current) => ({ ...current, [key]: value }))} />{acceptsAttachments && <AttachmentPicker files={files} problem={fileProblem} onChange={(nextFiles, problem) => { setFiles(nextFiles); setFileProblem(problem) }} />}<label className="field"><span>Response to manager</span><textarea rows={2} value={comment} onChange={(event) => setComment(event.target.value)} /></label>{error && <div className="inline-error" role="alert">{error}</div>}<button className="button" disabled={pending}>{pending ? files.length ? 'Uploading evidence…' : 'Resubmitting…' : 'Resubmit shared submission'}</button></form>
 }
 
 export function ReviewQueue({ submissions, loading, error, api, onRefresh }: { submissions: SubmissionView[]; loading: boolean; error: string | null; api: WorkflowApi; onRefresh: () => Promise<void> }) {

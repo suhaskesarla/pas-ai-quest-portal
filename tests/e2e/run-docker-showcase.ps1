@@ -1,3 +1,5 @@
+param([string]$PlaywrightConfig = 'docker-showcase.config.ts')
+
 $ErrorActionPreference = 'Stop'
 
 $runId = if ($env:QA_RUN_ID) { $env:QA_RUN_ID } else { (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ') }
@@ -54,7 +56,7 @@ try {
 
 Push-Location $e2eRoot
 try {
-  npx playwright test --config docker-showcase.config.ts
+  npx playwright test --config $PlaywrightConfig
   exit $LASTEXITCODE
 } finally {
   Pop-Location
