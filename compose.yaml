@@ -1,0 +1,64 @@
+name: pas-ai-quest-portal
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${SQL_SERVER_PASSWORD:?Copy .env.example to .env and set SQL_SERVER_PASSWORD}
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q \"SELECT 1\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.35.0
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --location /data --debug /data/debug.log
+    ports:
+      - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"
+    volumes:
+      - azurite-data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: src/api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__QuestDatabase: Server=sqlserver,1433;Database=PasAiQuest;User Id=sa;Password=${SQL_SERVER_PASSWORD};TrustServerCertificate=True
+      Storage__BlobServiceUri: http://azurite:10000/devstoreaccount1
+      Storage__ConnectionString: UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://azurite
+      Authentication__Mode: Demo
+    ports:
+      - "8080:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      azurite:
+        condition: service_started
+
+  web:
+    build:
+      context: .
+      dockerfile: src/web/Dockerfile
+      args:
+        VITE_DEMO_AUTH_ENABLED: "true"
+    ports:
+      - "5173:8080"
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  sqlserver-data:
+  azurite-data:

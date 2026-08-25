@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PAS.AIQuestPortal.Api", "src\api\PAS.AIQuestPortal.Api.csproj", "{8A516958-E701-4A52-86B8-CB787458F803}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4-00C04F79EFBC}") = "PAS.AIQuestPortal.Api.Tests", "tests\PAS.AIQuestPortal.Api.Tests\PAS.AIQuestPortal.Api.Tests.csproj", "{A5C30B14-F045-4D3D-B972-4A03E9466681}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8A516958-E701-4A52-86B8-CB787458F803}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8A516958-E701-4A52-86B8-CB787458F803}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8A516958-E701-4A52-86B8-CB787458F803}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8A516958-E701-4A52-86B8-CB787458F803}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A5C30B14-F045-4D3D-B972-4A03E9466681}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A5C30B14-F045-4D3D-B972-4A03E9466681}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A5C30B14-F045-4D3D-B972-4A03E9466681}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A5C30B14-F045-4D3D-B972-4A03E9466681}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

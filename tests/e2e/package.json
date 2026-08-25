@@ -1,0 +1,14 @@
+{
+  "name": "pas-ai-quest-portal-e2e",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:docker-showcase": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1",
+    "test:docker-step7": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-step7.config.ts",
+    "test:docker-reporting": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-reporting.config.ts",
+    "test:docker-manager-challenges": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-manager-challenges.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}

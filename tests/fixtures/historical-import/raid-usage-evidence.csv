@@ -1,0 +1,4 @@
+ParticipantSourceKey,RaidSessionKey,PassType,UsedAt,EvidenceKey
+synthetic-avery,august-physical-raid,Physical,2026-08-12T10:00:00+10:00,synthetic-raid-evidence-001
+synthetic-avery,august-remote-raid,Remote,2026-08-19T14:00:00+10:00,synthetic-raid-evidence-002
+synthetic-blake,august-physical-raid,Physical,2026-08-12T10:00:00+10:00,synthetic-raid-evidence-003
