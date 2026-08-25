@@ -19,6 +19,7 @@ using PAS.AIQuestPortal.Api.Configuration;
 using PAS.AIQuestPortal.Api.Data;
 using PAS.AIQuestPortal.Api.Evidence;
 using PAS.AIQuestPortal.Api.Workflow;
+using PAS.AIQuestPortal.Api.ChallengeAdministration;
 using Xunit;
 
 namespace PAS.AIQuestPortal.Api.Tests;
@@ -55,6 +56,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
             x.AddPolicy(QuestPolicies.Manager, p => p.RequireAuthenticatedUser().RequireRole(QuestRoles.Manager));
         });
         builder.Services.AddSubmissionWorkflow();
+        builder.Services.AddChallengeAdministration();
         builder.Services.Configure<StorageOptions>(x => { });
         builder.Services.AddSingleton<IEvidenceMalwareScanner, DeterministicPassThroughEvidenceMalwareScanner>();
         builder.Services.AddSingleton<IEvidenceBlobStore>(blobs);
@@ -62,7 +64,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         builder.Services.AddSingleton<ISubmissionPreCommitHook>(commitHook); builder.Services.AddSingleton<ISubmissionPostCommitHook>(commitHook);
         builder.Services.AddSingleton<ILogger<SubmissionWorkflowService>>(securityLogger);
         builder.Services.RemoveAll<TimeProvider>(); builder.Services.AddSingleton<TimeProvider>(clock);
-        app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapSubmissionWorkflow();
+        app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapSubmissionWorkflow(); app.MapChallengeAdministration();
         await app.StartAsync(); client = app.GetTestClient();
         await using AsyncServiceScope scope = app.Services.CreateAsyncScope(); QuestDbContext db = scope.ServiceProvider.GetRequiredService<QuestDbContext>();
         await db.Database.EnsureCreatedAsync(); await Seed(db);
@@ -133,6 +135,23 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/challenges/eligible")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await Send(HttpMethod.Get, "/api/submissions/review-queue", claimant, QuestRoles.Participant)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await Send(HttpMethod.Get, "/api/challenges/eligible", manager, QuestRoles.Manager)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Manager_challenge_wire_contract_serializes_base64_version_and_enforces_manager_policy()
+    {
+        Assert.Equal(HttpStatusCode.Forbidden, (await Send(HttpMethod.Get, "/api/manager/challenge-options", claimant, QuestRoles.Participant)).StatusCode);
+        using HttpResponseMessage response = await SendJson(HttpMethod.Post, "/api/manager/challenges", manager, QuestRoles.Manager, new
+        {
+            cycleId = cycle, name = "HTTP Draft", description = (string?)null, category = (string?)null,
+            openAt = clock.UtcNow.AddHours(1), dueAt = clock.UtcNow.AddDays(1), closeAt = clock.UtcNow.AddDays(2), heroImageReference = (string?)null,
+            tasks = new[] { new { id = (Guid?)null, name = "Draft Task", description = (string?)null, xp = 0, scoringMode = "Individual", evidenceRequirement = "None", sortOrder = 1 } },
+            participationPolicy = (object?)null
+        });
+        JsonElement created = await OkJson(response);
+        Assert.Equal("Draft", created.GetProperty("status").GetString());
+        Assert.NotEmpty(Convert.FromBase64String(created.GetProperty("version").GetString()!));
+        Assert.Equal(0, Assert.Single(created.GetProperty("tasks").EnumerateArray()).GetProperty("xp").GetInt32());
     }
 
     [Fact]

@@ -12,6 +12,7 @@ using PAS.AIQuestPortal.Api.Evidence;
 using PAS.AIQuestPortal.Api.HistoricalImport;
 using PAS.AIQuestPortal.Api.Workflow;
 using PAS.AIQuestPortal.Api.Reporting;
+using PAS.AIQuestPortal.Api.ChallengeAdministration;
 
 if (args.Length > 0 && string.Equals(args[0], "historical-import", StringComparison.OrdinalIgnoreCase))
 {
@@ -30,6 +31,7 @@ builder.Services.AddSingleton<IValidateOptions<StorageOptions>,StorageOptionsVal
 builder.AddQuestAuthentication();
 builder.Services.AddSubmissionWorkflow();
 builder.Services.AddParticipantReporting();
+builder.Services.AddChallengeAdministration();
 
 builder.Services.AddCors(options =>
 {
@@ -87,6 +89,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 app.MapQuestAuthenticationEndpoints();
 app.MapSubmissionWorkflow();
 app.MapParticipantReporting();
+app.MapChallengeAdministration();
 
 app.Run();
 return 0;

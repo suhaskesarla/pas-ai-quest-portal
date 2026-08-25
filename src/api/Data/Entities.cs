@@ -86,8 +86,8 @@ public sealed class Challenge
     public Guid Id { get; set; }
     public Guid CycleId { get; set; }
     public required string Name { get; set; }
-    public required string Description { get; set; }
-    public required string Category { get; set; }
+    public string? Description { get; set; }
+    public string? Category { get; set; }
     public ChallengeStatus Status { get; set; }
     public DateTimeOffset OpenAt { get; set; }
     public DateTimeOffset DueAt { get; set; }
@@ -96,6 +96,7 @@ public sealed class Challenge
     public string? GuideCharacter { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public Guid CreatedByParticipantId { get; set; }
+    public byte[] RowVersion { get; set; } = [];
 }
 
 public sealed class ChallengeTask

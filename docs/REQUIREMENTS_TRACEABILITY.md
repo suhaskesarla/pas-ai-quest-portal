@@ -107,6 +107,42 @@ The following approved design areas deliberately improve or generalise the histo
 
 These items do not imply that unresolved business rules have been decided.
 
+## Manager Challenge Administration Decisions
+
+### Lifecycle and availability
+
+Persist `Draft`, `Published`, `Closed` and `Archived` only. The allowed irreversible lifecycle is `Draft → Published → Closed → Archived`; Published cannot return to Draft, only Closed may be Archived, and restore is unavailable in this chunk.
+
+Open is derived rather than persisted. The general challenge Open state requires Published status and current time from `openAt` through `closeAt` inclusive. Participant submission/resubmission eligibility additionally applies the existing deadline/override rules; an explicit BA-006 override may extend that participant's effective close boundary without changing challenge status. UI labels such as Scheduled and Open are presentation only.
+
+### Editing and dates
+
+- Draft challenges permit editing of every challenge, task and configuration field.
+- Published challenges lock `openAt`, task list/identity/order, task XP, evidence requirements, scoring modes and all participation/team-policy fields.
+- Published name/title, description and supported hero image remain editable.
+- Published `dueAt` and `closeAt` may only be extended, never shortened.
+- Closed and Archived challenges are read-only in this chunk.
+- Existing participant deadline overrides remain authoritative and unchanged.
+- `openAt`, `dueAt` and `closeAt` are required, with `openAt < dueAt <= closeAt`; equal due and close times are valid.
+- Manager review after close remains allowed.
+
+### Tasks, evidence and participation
+
+- Publication requires at least one task.
+- Each task has a durable ID, name, explicit order, non-negative integer XP, scoring mode and evidence requirement.
+- Durable IDs are authoritative; task names need not be unique.
+- Zero-XP tasks are valid and no business maximum task count applies in this chunk.
+- A task selects exactly one of `None`, `Text`, `Link`, `Attachment` or `Multiple`; `Custom` remains deferred and unavailable.
+- A task explicitly selects `Individual`, `WholeTeam`, `ClaimantSelectsBeneficiaries` or `AttendanceBased`.
+- `ChallengeTeamPolicy` is required only when at least one task is non-Individual. Where required, `1 <= minMembers <= maxMembers`; `allowSolo = true` requires `minMembers = 1`, while `allowSolo = false` requires `minMembers >= 2`.
+- Individual-only challenges require no team policy, and `CycleTeam` must not be inferred from challenge participation.
+
+### Publication, archive and deletion
+
+Publish requires a non-empty name/title, valid required dates, at least one valid task, explicit task ordering, non-negative integer XP, supported evidence and scoring modes, and a valid participation policy when applicable. Description, category and hero image are optional.
+
+Draft deletion and hard deletion are deferred. Only `Closed → Archived` is supported, without restore.
+
 ## Participant Reporting-Surface Decisions
 
 ### Reporting-cycle selector
@@ -234,6 +270,7 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | BA-008 | Is a missing-score dispute tracked in the portal or handled externally? | `OPEN BUSINESS QUESTION` | Score-dispute workflow |
 | BA-009 | Are reviews assigned to a manager or shared across all managers? Decision: shared authorized-manager queue. | `DECIDED` | Nothing |
 | BA-010 | How long is approved/rejected evidence retained and when may it be purged? | `POLICY_PENDING` | Evidence retention/deletion implementation |
+| BA-011 | What lifecycle, editability, validation, participation and deletion rules govern manager challenge administration? Decision recorded. | `DECIDED` | Nothing |
 
 ## Implementation Gates
 
@@ -244,6 +281,7 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | Participant submission/beneficiary eligibility | **BA-005 RESOLVED — SAFE TO IMPLEMENT** |
 | Submission/resubmission date eligibility | **BA-006 RESOLVED — SAFE TO IMPLEMENT** |
 | Solo challenge participation | **BA-002 RESOLVED — SAFE TO IMPLEMENT** |
+| Manager challenge administration | **BA-011 RESOLVED — SAFE TO IMPLEMENT** |
 | Manager review ownership | **BA-009 RESOLVED — SAFE TO IMPLEMENT** |
 | Beneficiary-specific XP correction | **DECIDED — SAFE TO IMPLEMENT USING THE APPROVED APPEND-ONLY LEDGER** |
 | Step 7 evidence/attachment capability | **BUSINESS READY** |

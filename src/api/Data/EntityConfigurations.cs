@@ -94,7 +94,7 @@ public sealed class ChallengeConfiguration : IEntityTypeConfiguration<Challenge>
     public void Configure(EntityTypeBuilder<Challenge> b)
     {
         b.ToTable("Challenges", t => { t.HasCheckConstraint("CK_Challenges_Dates", "[OpenAt] <= [DueAt] AND [DueAt] <= [CloseAt]"); t.HasCheckConstraint("CK_Challenges_Status", "[Status] IN ('Draft','Published','Open','Closed','Archived')"); }); b.HasKey(x => x.Id); b.HasAlternateKey(x => new { x.Id, x.CycleId });
-        b.Property(x => x.Name).HasMaxLength(200); b.Property(x => x.Category).HasMaxLength(100); b.Property(x => x.Status).AsString(); b.Property(x => x.HeroImageReference).HasMaxLength(1000); b.Property(x => x.GuideCharacter).HasMaxLength(100);
+        b.Property(x => x.Name).HasMaxLength(200); b.Property(x => x.Category).HasMaxLength(100); b.Property(x => x.Status).AsString(); b.Property(x => x.HeroImageReference).HasMaxLength(1000); b.Property(x => x.GuideCharacter).HasMaxLength(100); b.Property(x => x.RowVersion).IsRowVersion();
         b.HasOne<Cycle>().WithMany().HasForeignKey(x => x.CycleId).Restrict(); b.HasOne<Participant>().WithMany().HasForeignKey(x => x.CreatedByParticipantId).Restrict();
     }
 }

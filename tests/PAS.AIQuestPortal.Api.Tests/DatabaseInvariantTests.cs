@@ -140,6 +140,14 @@ public sealed class DatabaseInvariantTests : IAsyncLifetime
         await Assert.ThrowsAsync<InvalidOperationException>(() => _db.SaveChangesAsync());
     }
 
+    [Fact]
+    public async Task Operational_challenge_due_date_change_still_requires_deadline_audit()
+    {
+        Challenge challenge = await _db.Challenges.SingleAsync(x => x.Id == _data.ChallengeB);
+        challenge.DueAt = challenge.DueAt.AddMinutes(1);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _db.SaveChangesAsync());
+    }
+
     private QuestDbContext CreateContext() => new(new DbContextOptionsBuilder<QuestDbContext>().UseSqlServer(_connectionString).Options);
 
     private async Task AssertConstraintFailureAsync(object entity)

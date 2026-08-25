@@ -81,7 +81,7 @@ public sealed class QuestDbContext(DbContextOptions<QuestDbContext> options) : D
             }
         }
 
-        foreach (EntityEntry<Challenge> challengeEntry in ChangeTracker.Entries<Challenge>().Where(x => x.State == EntityState.Modified && x.Property(y => y.DueAt).IsModified))
+        foreach (EntityEntry<Challenge> challengeEntry in ChangeTracker.Entries<Challenge>().Where(x => x.State == EntityState.Modified && x.Property(y => y.DueAt).IsModified && x.Property(y => y.Status).OriginalValue != ChallengeStatus.Draft))
         {
             DateTimeOffset previous = challengeEntry.Property(x => x.DueAt).OriginalValue;
             DateTimeOffset current = challengeEntry.Property(x => x.DueAt).CurrentValue;

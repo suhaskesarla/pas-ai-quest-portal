@@ -38,6 +38,60 @@ Decision required:
 
 ## Resolved
 
+### 2026-08-25 — Manager challenge administration lifecycle and validation (resolves BA-011; amends spec §§2, 6, 8, 9, 16 and 20)
+
+Decided by: User
+
+#### Lifecycle
+
+- Persist only `Draft`, `Published`, `Closed` and `Archived` challenge statuses.
+- Open is not a persisted manager-controlled status. The general challenge Open state is derived when `Challenge.Status == Published`, current time is at or after `openAt`, and current time is at or before `closeAt`.
+- Participant submission/resubmission eligibility additionally applies the existing deadline/override rules. An explicit participant override may extend that participant's effective close boundary beyond the general `closeAt` under BA-006; it does not change the persisted challenge status.
+- The UI may show derived labels such as Scheduled or Open without persisting them as challenge statuses.
+- The only lifecycle is `Draft → Published → Closed → Archived`.
+- Publishing is irreversible; Published cannot return to Draft.
+- Only Closed challenges may be Archived. Archive is irreversible in this chunk and restore is unsupported.
+
+#### Editing
+
+- All challenge, task and configuration fields are editable while Draft.
+- After publication, `openAt`, task identity/list/order, task XP, evidence requirement, scoring mode, participation/team policy, `allowSolo`, `minMembers` and `maxMembers` are immutable.
+- After publication, challenge name/title, description and supported hero image remain editable.
+- After publication, `dueAt` and `closeAt` may only be extended; they cannot be shortened.
+- Closed and Archived challenges are read-only in this chunk.
+- Existing participant deadline overrides remain authoritative and unchanged.
+
+#### Dates
+
+- `openAt`, `dueAt` and `closeAt` are required.
+- Require `openAt < dueAt` and `dueAt <= closeAt`; `dueAt == closeAt` is valid.
+- Managers may continue reviewing after `closeAt` under the existing decision.
+
+#### Tasks, XP and evidence
+
+- Publication requires at least one task.
+- Every task has a durable ID, name, explicit ordering, non-negative integer XP, scoring mode and evidence requirement.
+- Task names need not be unique; durable IDs are authoritative.
+- Zero-XP tasks are allowed. No business maximum task count is introduced in this chunk.
+- Each task selects exactly one supported evidence requirement: `None`, `Text`, `Link`, `Attachment` or `Multiple`. `Custom` remains deferred and unavailable.
+
+#### Participation
+
+- Each task explicitly selects `Individual`, `WholeTeam`, `ClaimantSelectsBeneficiaries` or `AttendanceBased`.
+- `ChallengeTeamPolicy` is required only when at least one task is non-Individual.
+- When a policy applies, require `1 <= minMembers <= maxMembers`.
+- If `allowSolo` is true, `minMembers` must equal 1. If false, `minMembers` must be at least 2.
+- Individual-only challenges do not require `ChallengeTeamPolicy`.
+- Never infer `CycleTeam` from challenge participation.
+
+#### Publish validation and deletion
+
+- Publish requires a non-empty challenge name/title, valid required dates, at least one valid task, explicit task ordering, non-negative integer XP, supported evidence and scoring modes, and a valid participation policy when required.
+- Description, category and hero image are optional.
+- Draft deletion and all hard deletion are deferred. This chunk supports only `Closed → Archived`, with no restore.
+
+---
+
 ### 2026-08-24 — Participant reporting surfaces and cycle-team presentation (resolves BA-004; amends spec §§3, 6, 10, 16 and 17)
 
 Decided by: User

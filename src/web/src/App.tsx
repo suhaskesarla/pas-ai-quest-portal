@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
 import { QUEST_MANAGER_ROLE, QUEST_PARTICIPANT_ROLE } from './auth/types'
+import { ChallengeAdministration } from './challenge-admin/ChallengeAdministration'
+import { challengeAdminApi, type ChallengeAdminApi } from './challenge-admin/challengeAdminApi'
 import { ParticipantReportingArea } from './reporting/ParticipantReportingViews'
 import { reportingApi, type ReportingApi } from './reporting/reportingApi'
 import { ActivityList, ChallengeList, ReviewQueue, SubmissionForm, WorkflowState } from './workflow/WorkflowViews'
@@ -54,7 +56,7 @@ function DemoAuthControl({ onSwitched }: { onSwitched: () => void }) {
   )
 }
 
-function AuthenticatedShell({ api, reports }: { api: WorkflowApi; reports: ReportingApi }) {
+function AuthenticatedShell({ api, reports, challengeAdmin }: { api: WorkflowApi; reports: ReportingApi; challengeAdmin: ChallengeAdminApi }) {
   const { currentUser, demoModeAvailable, switching } = useAuth()
   const [activePage, setActivePage] = useState('dashboard')
   const [challenges, setChallenges] = useState<EligibleChallenge[]>([])
@@ -94,6 +96,8 @@ function AuthenticatedShell({ api, reports }: { api: WorkflowApi; reports: Repor
     ? <SubmissionForm currentUser={currentUser} challenge={selected.challenge} task={selected.task} api={api} onCancel={() => navigate('challenges')} onSubmitted={() => { setNotice('Submission confirmed by the API.'); setSelected(null); setActivePage('activity'); void loadParticipant() }} />
     : <ChallengeList challenges={challenges} loading={loading} error={workflowError} onSelectTask={(challenge, task) => setSelected({ challenge, task })} />
   else if (activePage === 'activity' && isParticipant) pageContent = <ActivityList submissions={submissions} loading={loading} error={workflowError} api={api} onRefresh={async () => { await loadParticipant(); setNotice('Submission updated from the API.') }} />
+  else if (activePage === 'challenges' && isManager) pageContent = <ChallengeAdministration api={challengeAdmin} />
+  else if (activePage === 'new-challenge' && isManager) pageContent = <ChallengeAdministration api={challengeAdmin} startCreating />
   else if (activePage === 'review' && isManager) pageContent = <ReviewQueue submissions={reviewQueue} loading={loading} error={workflowError} api={api} onRefresh={async () => { await loadManager(); setNotice('Review outcome confirmed by the API.') }} />
   else if (activePage === 'dashboard') pageContent = <section className="card"><p className="eyebrow">MANAGER</p><h2>Welcome, {currentUser.displayName}</h2><p>{reviewQueue.length} submission{reviewQueue.length === 1 ? '' : 's'} waiting for review.</p></section>
   else pageContent = <WorkflowState text="This portal area is outside the current Step 6 workflow." />
@@ -115,10 +119,10 @@ function AuthenticatedShell({ api, reports }: { api: WorkflowApi; reports: Repor
   </div>
 }
 
-export function App({ api = workflowApi, reports = reportingApi }: { api?: WorkflowApi; reports?: ReportingApi }) {
+export function App({ api = workflowApi, reports = reportingApi, challengeAdmin = challengeAdminApi }: { api?: WorkflowApi; reports?: ReportingApi; challengeAdmin?: ChallengeAdminApi }) {
   const { status, error, demoModeAvailable, refreshCurrentUser } = useAuth()
   if (status === 'loading') return <main className="state-page" aria-live="polite"><div className="spinner" /><h1>Confirming your identity…</h1></main>
-  if (status === 'authenticated') return <AuthenticatedShell api={api} reports={reports} />
+  if (status === 'authenticated') return <AuthenticatedShell api={api} reports={reports} challengeAdmin={challengeAdmin} />
   return <main className="state-page">
     {demoModeAvailable && <DemoAuthControl onSwitched={() => undefined} />}
     <section className="card state-card"><p className="eyebrow">PAS AI QUEST</p><h1>{status === 'unauthenticated' ? 'You are not signed in' : 'We could not confirm your identity'}</h1><p>{error ?? 'Use the approved authentication method to continue. Development users can choose a synthetic demo identity above.'}</p>{status === 'error' && <button className="button" type="button" onClick={() => void refreshCurrentUser().catch(() => undefined)}>Try again</button>}</section>
