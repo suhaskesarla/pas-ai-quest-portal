@@ -31,6 +31,7 @@ builder.Services.AddSingleton<IValidateOptions<StorageOptions>,StorageOptionsVal
 builder.AddQuestAuthentication();
 builder.Services.AddSubmissionWorkflow();
 builder.Services.AddParticipantReporting();
+builder.Services.AddManagerScoresheet();
 builder.Services.AddChallengeAdministration();
 
 builder.Services.AddCors(options =>
@@ -89,6 +90,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 app.MapQuestAuthenticationEndpoints();
 app.MapSubmissionWorkflow();
 app.MapParticipantReporting();
+app.MapManagerScoresheet();
 app.MapChallengeAdministration();
 
 app.Run();

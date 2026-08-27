@@ -688,7 +688,47 @@ Review:
 
 ---
 
-# 12. Coordination Rule — Avoid Stale Reviews
+# 12. Product Owner
+
+Use the Product Owner role for product scope and prioritisation decisions.
+
+Responsibilities:
+- Define MVP / demo-complete scope.
+- Prioritise remaining functionality.
+- Decide MUST HAVE vs SHOULD HAVE vs DEFER.
+- Decide whether a proposed feature materially improves the participant or manager journey.
+- Prevent unnecessary scope expansion.
+- Keep the product focused on complete business journeys.
+
+Do not use Product Owner for:
+- detailed business rules — use Business Analyst;
+- API/domain contracts — use Tech Lead;
+- architecture/schema/concurrency decisions — use Senior Architect;
+- security review — use Security Reviewer;
+- implementation — use Backend/Frontend Developer;
+- acceptance testing — use QA.
+
+Invoke Product Owner only when scope or priority is genuinely unclear.
+
+---
+
+# 13. Role Selection
+
+Use the smallest set of roles required for each feature.
+
+- Product Owner — scope, priority, MVP/demo-complete decisions
+- Business Analyst — unresolved business rules
+- Tech Lead — technical contract/domain uncertainty
+- Senior Architect — schema/architecture/concurrency changes
+- Security Reviewer — security-boundary changes
+- Backend Developer — backend implementation
+- Frontend Developer — frontend implementation
+- UI/UX Reviewer — meaningful UI/usability review
+- QA — final integrated acceptance
+
+---
+
+# 14. Coordination Rule — Avoid Stale Reviews
 
 Final reviewers must inspect the Developer's completed changes.
 
@@ -714,7 +754,7 @@ Final implementation review must inspect the current final implementation state.
 
 ---
 
-# 13. Worktree Rules
+# 15. Worktree Rules
 
 Separate worktrees may be used for parallel experimentation.
 
@@ -728,7 +768,7 @@ However:
 
 ---
 
-# 14. Business Rule Protocol
+# 16. Business Rule Protocol
 
 If an unresolved business rule is encountered:
 
@@ -760,7 +800,7 @@ Do not invent the leaderboard formula.
 
 ---
 
-# 15. Policy Protocol
+# 17. Policy Protocol
 
 If a required policy decision is missing:
 
@@ -776,7 +816,7 @@ Do not invent a retention period.
 
 ---
 
-# 16. Historical Import Rules
+# 18. Historical Import Rules
 
 Historical import must remain fail-closed.
 
@@ -812,7 +852,7 @@ Displayed score-sheet totals are reconciliation values, not XP entries.
 
 ---
 
-# 17. Testing Philosophy
+# 19. Testing Philosophy
 
 Tests should protect behavior, not implementation trivia.
 
@@ -838,7 +878,7 @@ Stop when the agreed acceptance criteria and material risks are covered.
 
 ---
 
-# 18. Definition of Done
+# 20. Definition of Done
 
 A playbook step is ready for user approval when the checks relevant to that step are complete.
 
@@ -862,7 +902,7 @@ Do not repeatedly re-review an already approved design unless new information or
 
 ---
 
-# 19. Usage / Credit Discipline
+# 21. Usage / Credit Discipline
 
 This project runs under limited agentic usage.
 
@@ -886,7 +926,7 @@ The agent team exists to accelerate implementation, not simulate corporate cerem
 
 ---
 
-# 20. Pause / Resume Protocol
+# 22. Pause / Resume Protocol
 
 If usage limits are approaching or work must pause, produce a checkpoint containing:
 
@@ -908,7 +948,7 @@ The checkpoint should allow continuation later without repeating work.
 
 ---
 
-# 21. Git Rules
+# 23. Git Rules
 
 Agents must:
 
@@ -928,7 +968,7 @@ Commit only after user approval.
 
 ---
 
-# 22. Real Source Evidence
+# 24. Real Source Evidence
 
 Real source files must remain local-only.
 
@@ -953,7 +993,24 @@ Business Analyst source-to-spec reviews may use these local files, but review ou
 
 ---
 
-# 23. Current Project State
+# 25. Current Project State
+
+## Current Product Priority
+
+For local demo completion, implement in this order:
+
+1. Manager Scoresheet
+2. Correction UI
+3. Manual XP Award
+4. Manager dashboard/navigation cleanup
+5. Unified final Docker demo
+
+Optional after demo-complete:
+
+- Cycle Administration
+- Raid Administration
+
+Do not pull deferred production work into the critical path unless explicitly requested.
 
 Approved and completed:
 
@@ -1002,7 +1059,7 @@ July Go Pass 3 remains attributed to July despite August submission/approval tim
 
 ---
 
-# 24. Current Build Step
+# 26. Current Build Step
 
 Next:
 
@@ -1021,7 +1078,7 @@ Senior Architect + Security Reviewer
 → User approval
 → Commit
 
-# 25. Step 4 Final Gate
+# 27. Step 4 Final Gate
 
 For the current Step 4 state:
 
@@ -1052,7 +1109,7 @@ Do not automatically add another Tech Lead / Architect / Delivery Manager cycle 
 
 ---
 
-# 26. AGENTS.md Commit Rule
+# 28. AGENTS.md Commit Rule
 
 `AGENTS.md` is an operating-model artifact.
 
@@ -1066,7 +1123,7 @@ After Step 4 is approved and committed:
 
 ---
 
-# 27. Next Build Step
+# 29. Next Build Step
 
 Step 5 has not started.
 

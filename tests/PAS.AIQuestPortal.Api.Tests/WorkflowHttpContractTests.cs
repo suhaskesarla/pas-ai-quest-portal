@@ -18,6 +18,7 @@ using PAS.AIQuestPortal.Api.Authentication;
 using PAS.AIQuestPortal.Api.Configuration;
 using PAS.AIQuestPortal.Api.Data;
 using PAS.AIQuestPortal.Api.Evidence;
+using PAS.AIQuestPortal.Api.Reporting;
 using PAS.AIQuestPortal.Api.Workflow;
 using PAS.AIQuestPortal.Api.ChallengeAdministration;
 using Xunit;
@@ -56,6 +57,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
             x.AddPolicy(QuestPolicies.Manager, p => p.RequireAuthenticatedUser().RequireRole(QuestRoles.Manager));
         });
         builder.Services.AddSubmissionWorkflow();
+        builder.Services.AddManagerScoresheet();
         builder.Services.AddChallengeAdministration();
         builder.Services.Configure<StorageOptions>(x => { });
         builder.Services.AddSingleton<IEvidenceMalwareScanner, DeterministicPassThroughEvidenceMalwareScanner>();
@@ -64,7 +66,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         builder.Services.AddSingleton<ISubmissionPreCommitHook>(commitHook); builder.Services.AddSingleton<ISubmissionPostCommitHook>(commitHook);
         builder.Services.AddSingleton<ILogger<SubmissionWorkflowService>>(securityLogger);
         builder.Services.RemoveAll<TimeProvider>(); builder.Services.AddSingleton<TimeProvider>(clock);
-        app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapSubmissionWorkflow(); app.MapChallengeAdministration();
+        app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapSubmissionWorkflow(); app.MapManagerScoresheet(); app.MapChallengeAdministration();
         await app.StartAsync(); client = app.GetTestClient();
         await using AsyncServiceScope scope = app.Services.CreateAsyncScope(); QuestDbContext db = scope.ServiceProvider.GetRequiredService<QuestDbContext>();
         await db.Database.EnsureCreatedAsync(); await Seed(db);
@@ -135,6 +137,32 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/challenges/eligible")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await Send(HttpMethod.Get, "/api/submissions/review-queue", claimant, QuestRoles.Participant)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await Send(HttpMethod.Get, "/api/challenges/eligible", manager, QuestRoles.Manager)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Manager_scoresheet_routes_enforce_policy_and_serialize_contract()
+    {
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/manager/reporting-cycles")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Send(HttpMethod.Get, "/api/manager/scoresheet?cycleId=" + cycle, claimant, QuestRoles.Participant)).StatusCode);
+
+        JsonElement cycles = await OkJson(await Send(HttpMethod.Get, "/api/manager/reporting-cycles", manager, QuestRoles.Manager));
+        Assert.Equal(cycle, cycles.GetProperty("defaultCycleId").GetGuid());
+        JsonElement scoresheet = await OkJson(await Send(HttpMethod.Get, "/api/manager/scoresheet?cycleId=" + cycle, manager, QuestRoles.Manager));
+        JsonElement row = scoresheet.GetProperty("rows").EnumerateArray().Single(x => x.GetProperty("participantId").GetGuid() == claimant);
+        Assert.Equal(0, row.GetProperty("totalXp").GetInt32());
+        JsonElement bySource = row.GetProperty("bySource");
+        Assert.Equal(0, bySource.GetProperty("taskApprovalXp").GetInt32());
+        Assert.Equal(0, bySource.GetProperty("manualAwardXp").GetInt32());
+        Assert.Equal(0, bySource.GetProperty("raidXp").GetInt32());
+        JsonElement byEntryType = row.GetProperty("byEntryType");
+        Assert.Equal(0, byEntryType.GetProperty("grantXp").GetInt32());
+        Assert.Equal(0, byEntryType.GetProperty("reversalXp").GetInt32());
+        Assert.Equal(0, byEntryType.GetProperty("correctionXp").GetInt32());
+        Assert.Equal(0, byEntryType.GetProperty("netAdjustmentXp").GetInt32());
+
+        using HttpResponseMessage invalid = await Send(HttpMethod.Get, "/api/manager/scoresheet?cycleId=invalid", manager, QuestRoles.Manager);
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        Assert.Equal("InvalidCycleId", (await invalid.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
     }
 
     [Fact]
