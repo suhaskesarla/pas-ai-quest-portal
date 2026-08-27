@@ -16,7 +16,9 @@ public sealed record ScoresheetEntryTotals(int GrantXp, int ReversalXp, int Corr
 public sealed record ScoresheetRow(Guid ParticipantId, string DisplayName, CycleParticipantStatus ParticipantStatus, int TotalXp, ScoresheetSourceTotals BySource, ScoresheetEntryTotals ByEntryType);
 public sealed record ManagerScoresheetView(ManagerReportingCycle Cycle, IReadOnlyList<ScoresheetRow> Rows);
 public sealed record ScoresheetParticipant(Guid ParticipantId, string DisplayName, CycleParticipantStatus ParticipantStatus);
-public sealed record ScoresheetParticipantDetail(ManagerReportingCycle Cycle, ScoresheetParticipant Participant, int TotalXp, ScoresheetSourceTotals BySource, ScoresheetEntryTotals ByEntryType, IReadOnlyList<XpActivityItem> Items, string? NextCursor);
+public sealed record ScoresheetCorrectionView(int CurrentEffectiveAmount);
+public sealed record ScoresheetLedgerItem(Guid Id, int Amount, XPEntryType EntryType, XPSourceType SourceType, string Reason, DateTimeOffset AwardedAt, Guid? ReversesEntryId, XpSourceView Source, ScoresheetCorrectionView? Correction);
+public sealed record ScoresheetParticipantDetail(ManagerReportingCycle Cycle, ScoresheetParticipant Participant, int TotalXp, ScoresheetSourceTotals BySource, ScoresheetEntryTotals ByEntryType, IReadOnlyList<ScoresheetLedgerItem> Items, string? NextCursor);
 
 public sealed class ManagerScoresheetService(QuestDbContext db, IQuestCurrentUser currentUser)
 {
@@ -76,16 +78,18 @@ public sealed class ManagerScoresheetService(QuestDbContext db, IQuestCurrentUse
                 group.Sum(x => x.EntryType == XPEntryType.Correction ? x.Amount : 0)))
             .SingleOrDefaultAsync(ct) ?? new(0, 0, 0, 0, 0, 0, 0);
         List<XPEntry> page = await query.OrderByDescending(x => x.AwardedAt).ThenByDescending(x => x.Id).Take(limit + 1).ToListAsync(ct); bool more = page.Count > limit; if (more) page.RemoveAt(page.Count - 1);
-        IReadOnlyList<XpActivityItem> items = await Items(page, ct);
+        IReadOnlyList<ScoresheetLedgerItem> items = await Items(page, ct);
         ScoresheetRow summary = Row(participant.ParticipantId, participant.DisplayName, participant.ParticipantStatus, totals.Total, totals.Task, totals.Manual, totals.Raid, totals.Grant, totals.Reversal, totals.Correction);
         return new(cycle, participant, summary.TotalXp, summary.BySource, summary.ByEntryType, items, more && page.Count > 0 ? Encode(page[^1].AwardedAt, page[^1].Id) : null);
     }
 
-    private async Task<IReadOnlyList<XpActivityItem>> Items(IReadOnlyList<XPEntry> rows, CancellationToken ct)
+    private async Task<IReadOnlyList<ScoresheetLedgerItem>> Items(IReadOnlyList<XPEntry> rows, CancellationToken ct)
     {
         Guid[] challengeIds = rows.Where(x => x.ChallengeId.HasValue).Select(x => x.ChallengeId!.Value).Distinct().ToArray(), taskIds = rows.Where(x => x.TaskId.HasValue).Select(x => x.TaskId!.Value).Distinct().ToArray(), awardIds = rows.Where(x => x.AwardCategoryId.HasValue).Select(x => x.AwardCategoryId!.Value).Distinct().ToArray(), raidIds = rows.Where(x => x.RaidSessionId.HasValue).Select(x => x.RaidSessionId!.Value).Distinct().ToArray();
+        Guid[] correctableIds = rows.Where(x => x.EntryType == XPEntryType.Grant && x.SourceType == XPSourceType.TaskApproval).Select(x => x.Id).ToArray();
+        Dictionary<Guid, int> adjustments = await db.XPEntries.AsNoTracking().Where(x => x.ReversesEntryId.HasValue && correctableIds.Contains(x.ReversesEntryId.Value)).GroupBy(x => x.ReversesEntryId!.Value).Select(x => new { Id = x.Key, Amount = x.Sum(y => y.Amount) }).ToDictionaryAsync(x => x.Id, x => x.Amount, ct);
         Dictionary<Guid, string> challenges = await db.Challenges.AsNoTracking().Where(x => challengeIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, ct), tasks = await db.ChallengeTasks.AsNoTracking().Where(x => taskIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, ct), awards = await db.AwardCategories.AsNoTracking().Where(x => awardIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, ct), raids = await db.RaidSessions.AsNoTracking().Where(x => raidIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, ct);
-        return rows.Select(row => { string? challenge = row.ChallengeId is Guid a ? challenges.GetValueOrDefault(a) : null, task = row.TaskId is Guid b ? tasks.GetValueOrDefault(b) : null, award = row.AwardCategoryId is Guid c ? awards.GetValueOrDefault(c) : null, raid = row.RaidSessionId is Guid d ? raids.GetValueOrDefault(d) : null; string label = row.SourceType switch { XPSourceType.TaskApproval => $"{challenge} · {task}", XPSourceType.ManualAward => award ?? "Manual award", XPSourceType.Raid => raid ?? "Raid", _ => row.SourceType.ToString() }; return new XpActivityItem(row.Id, row.Amount, row.EntryType, row.SourceType, row.Reason, row.AwardedAt, row.ReversesEntryId, new(label, row.ChallengeId, challenge, row.TaskId, task, row.AwardCategoryId, award, row.RaidSessionId, raid)); }).ToArray();
+        return rows.Select(row => { string? challenge = row.ChallengeId is Guid a ? challenges.GetValueOrDefault(a) : null, task = row.TaskId is Guid b ? tasks.GetValueOrDefault(b) : null, award = row.AwardCategoryId is Guid c ? awards.GetValueOrDefault(c) : null, raid = row.RaidSessionId is Guid d ? raids.GetValueOrDefault(d) : null; string label = row.SourceType switch { XPSourceType.TaskApproval => $"{challenge} · {task}", XPSourceType.ManualAward => award ?? "Manual award", XPSourceType.Raid => raid ?? "Raid", _ => row.SourceType.ToString() }; ScoresheetCorrectionView? correction = row.EntryType == XPEntryType.Grant && row.SourceType == XPSourceType.TaskApproval ? new(row.Amount + adjustments.GetValueOrDefault(row.Id)) : null; return new ScoresheetLedgerItem(row.Id, row.Amount, row.EntryType, row.SourceType, row.Reason, row.AwardedAt, row.ReversesEntryId, new(label, row.ChallengeId, challenge, row.TaskId, task, row.AwardCategoryId, award, row.RaidSessionId, raid), correction); }).ToArray();
     }
 
     private async Task<ManagerReportingCycle> Cycle(Guid id, CancellationToken ct) => await db.Cycles.AsNoTracking().Where(x => x.Id == id).Select(CycleProjection()).SingleOrDefaultAsync(ct) ?? throw new WorkflowException(404, "ReportingCycleNotFound", "The reporting cycle was not found.");

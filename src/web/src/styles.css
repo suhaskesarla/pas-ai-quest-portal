@@ -154,6 +154,16 @@ mark { margin-left: 8px; padding: 2px 7px; border-radius: 999px; color: #0a1f44;
 .scoresheet-detail { margin-top: 18px; border-top-color: #ffc72c; }
 .detail-heading { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 16px; }
 .scoresheet-breakdown { grid-template-columns: repeat(4, 1fr); }
+.correction-trigger { display: block; width: fit-content; margin-top: 9px; padding: 6px 11px; font-size: 11px; }
+.correction-dialog { margin-top: 18px; padding: 18px; border: 2px solid #e0b42b; border-radius: 10px; background: #fffdf5; }
+.correction-dialog > header { display: flex; justify-content: space-between; align-items: start; gap: 14px; }
+.correction-dialog h3, .correction-dialog h4 { margin: 4px 0 10px; }
+.correction-dialog dl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.correction-dialog dl div { padding: 9px; border-radius: 7px; background: white; }
+.correction-dialog dt { color: #65758b; font-size: 10px; text-transform: uppercase; }
+.correction-dialog dd { margin: 3px 0 0; font-weight: 700; overflow-wrap: anywhere; }
+.correction-delta { color: #53647a; font-size: 13px; }
+.correction-confirm { margin-top: 14px; padding-top: 14px; border-top: 1px solid #e6d9aa; }
 .activity-rows { display: grid; gap: 9px; }
 .activity-rows article { display: grid; grid-template-columns: 90px 1fr; gap: 14px; align-items: start; padding: 13px 15px; border: 1px solid #dfe3e8; border-radius: 9px; background: white; }
 .activity-rows h3, .activity-rows p { margin: 0 0 3px; }

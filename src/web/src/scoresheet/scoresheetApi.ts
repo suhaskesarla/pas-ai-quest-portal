@@ -1,19 +1,19 @@
-import type { ManagerReportingCycles, ScoresheetDetail, ScoresheetSummary } from './types'
+import type { CorrectionRequest, CorrectionResponse, ManagerReportingCycles, ScoresheetDetail, ScoresheetSummary } from './types'
 
 export class ScoresheetApiError extends Error {
-  constructor(public readonly status: number, public readonly detail?: string) {
+  constructor(public readonly status: number, public readonly detail?: string, public readonly code?: string) {
     super(detail || `Request failed (${status})`)
     this.name = 'ScoresheetApiError'
   }
 }
 
-async function request<T>(path: string): Promise<T> {
+async function request<T>(path: string, command?: { method: 'POST'; payload: unknown }): Promise<T> {
   let response: Response
-  try { response = await fetch(path, { credentials: 'same-origin' }) }
+  try { response = await fetch(path, { credentials: 'same-origin', method: command?.method, headers: command ? { 'Content-Type': 'application/json' } : undefined, body: command ? JSON.stringify(command.payload) : undefined }) }
   catch { throw new ScoresheetApiError(0, 'Network request failed.') }
   if (!response.ok) {
-    const problem = await response.json().catch(() => null) as { detail?: string; title?: string } | null
-    throw new ScoresheetApiError(response.status, problem?.detail || problem?.title)
+    const problem = await response.json().catch(() => null) as { detail?: string; title?: string; code?: string } | null
+    throw new ScoresheetApiError(response.status, problem?.detail || problem?.title, problem?.code || problem?.title)
   }
   return response.json() as Promise<T>
 }
@@ -22,6 +22,7 @@ export const scoresheetApi = {
   getReportingCycles: () => request<ManagerReportingCycles>('/api/manager/reporting-cycles'),
   getScoresheet: (cycleId: string) => request<ScoresheetSummary>(`/api/manager/scoresheet?cycleId=${encodeURIComponent(cycleId)}`),
   getParticipant: (participantId: string, cycleId: string, cursor?: string | null) => request<ScoresheetDetail>(`/api/manager/scoresheet/${encodeURIComponent(participantId)}?cycleId=${encodeURIComponent(cycleId)}&limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+  correctXp: (entryId: string, payload: CorrectionRequest) => request<CorrectionResponse>(`/api/manager/xp/${encodeURIComponent(entryId)}/corrections`, { method: 'POST', payload }),
 }
 export type ScoresheetApi = typeof scoresheetApi
 
