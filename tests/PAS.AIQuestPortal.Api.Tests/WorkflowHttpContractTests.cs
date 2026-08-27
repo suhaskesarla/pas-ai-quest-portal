@@ -166,6 +166,29 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Correction_http_contract_requires_explicit_integer_amount_and_reason()
+    {
+        JsonElement created = await CreateSubmission();
+        JsonElement approved = await OkJson(await SendJson(HttpMethod.Post, $"/api/submissions/{created.GetProperty("id").GetGuid()}/review", manager, QuestRoles.Manager, new { version = created.GetProperty("version").GetString(), action = "Approve" }));
+        Guid submissionId = approved.GetProperty("id").GetGuid();
+        await using AsyncServiceScope scope = app.Services.CreateAsyncScope();
+        QuestDbContext db = scope.ServiceProvider.GetRequiredService<QuestDbContext>();
+        Guid grantId = await db.XPEntries.Where(x => x.SubmissionId == submissionId && x.ParticipantId == claimant).Select(x => x.Id).SingleAsync();
+
+        await AssertProblem(await SendJson(HttpMethod.Post, $"/api/manager/xp/{grantId}/corrections", manager, QuestRoles.Manager, new { reason = "missing" }), HttpStatusCode.BadRequest, "InvalidCorrectionAmount");
+        await AssertProblem(await SendJson(HttpMethod.Post, $"/api/manager/xp/{grantId}/corrections", manager, QuestRoles.Manager, new { newAmount = 1.5, reason = "decimal" }), HttpStatusCode.BadRequest, "InvalidCorrectionAmount");
+        await AssertProblem(await SendJson(HttpMethod.Post, $"/api/manager/xp/{grantId}/corrections", manager, QuestRoles.Manager, new { newAmount = -1, reason = "negative" }), HttpStatusCode.BadRequest, "InvalidCorrectionAmount");
+        await AssertProblem(await SendJson(HttpMethod.Post, $"/api/manager/xp/{grantId}/corrections", manager, QuestRoles.Manager, new { newAmount = 0 }), HttpStatusCode.BadRequest, "CorrectionReasonRequired");
+        await AssertProblem(await SendJson(HttpMethod.Post, $"/api/manager/xp/{grantId}/corrections", manager, QuestRoles.Manager, new { newAmount = 0, reason = new string('x', 2001) }), HttpStatusCode.BadRequest, "CorrectionReasonTooLong");
+        Assert.Equal(HttpStatusCode.Forbidden, (await SendJson(HttpMethod.Post, $"/api/manager/xp/{grantId}/corrections", claimant, QuestRoles.Participant, new { newAmount = 0, reason = "forbidden" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync($"/api/manager/xp/{grantId}/corrections", new { newAmount = 0, reason = "anonymous" })).StatusCode);
+
+        JsonElement correction = await OkJson(await SendJson(HttpMethod.Post, $"/api/manager/xp/{grantId}/corrections", manager, QuestRoles.Manager, new { newAmount = 0, reason = "  Remove award  " }));
+        Assert.Equal(-25, correction.GetProperty("amount").GetInt32());
+        Assert.Equal("Remove award", correction.GetProperty("reason").GetString());
+    }
+
+    [Fact]
     public async Task Manager_challenge_wire_contract_serializes_base64_version_and_enforces_manager_policy()
     {
         Assert.Equal(HttpStatusCode.Forbidden, (await Send(HttpMethod.Get, "/api/manager/challenge-options", claimant, QuestRoles.Participant)).StatusCode);

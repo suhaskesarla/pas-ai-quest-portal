@@ -38,7 +38,7 @@ public static class SubmissionWorkflowEndpoints
         })).RequireAuthorization(QuestPolicies.Participant);
         app.MapGet("/api/submissions/review-queue", (SubmissionWorkflowService service, CancellationToken ct) => Run(() => service.QueueAsync(ct))).RequireAuthorization(QuestPolicies.Manager);
         app.MapPost("/api/submissions/{id:guid}/review", (SubmissionWorkflowService service, Guid id, ReviewRequest request, CancellationToken ct) => Run(() => service.ReviewAsync(id, request, ct))).RequireAuthorization(QuestPolicies.Manager);
-        app.MapPost("/api/manager/xp/{entryId:guid}/corrections", (SubmissionWorkflowService service, Guid entryId, CorrectionRequest request, CancellationToken ct) => Run(() => service.CorrectAsync(entryId, request, ct))).RequireAuthorization(QuestPolicies.Manager);
+        app.MapPost("/api/manager/xp/{entryId:guid}/corrections", (SubmissionWorkflowService service, Guid entryId, JsonElement request, CancellationToken ct) => Run(() => service.CorrectAsync(entryId, ParseCorrection(request), ct))).RequireAuthorization(QuestPolicies.Manager);
         app.MapGet("/api/submission-evidence/{evidenceId:guid}/content", async (SubmissionWorkflowService service, HttpContext http, Guid evidenceId, CancellationToken ct) =>
         {
             try
@@ -57,6 +57,14 @@ public static class SubmissionWorkflowEndpoints
     }
 
     private static readonly JsonSerializerOptions MultipartJson = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
+
+    private static CorrectionRequest ParseCorrection(JsonElement request)
+    {
+        if (request.ValueKind != JsonValueKind.Object || !request.TryGetProperty("newAmount", out JsonElement amount) || amount.ValueKind != JsonValueKind.Number || !amount.TryGetInt32(out int value))
+            throw new WorkflowException(400, "InvalidCorrectionAmount", "newAmount must be a JSON integer in the Int32 range.");
+        string? reason = request.TryGetProperty("reason", out JsonElement reasonValue) && reasonValue.ValueKind == JsonValueKind.String ? reasonValue.GetString() : null;
+        return new(value, reason);
+    }
 
     private sealed record RawFile(string Key,string Name,string Mime,string Path,long Size);
     private static async Task<(T Payload, IReadOnlyList<AttachmentUpload> Files)> Parse<T>(HttpRequest request, StorageOptions storage, CancellationToken ct)

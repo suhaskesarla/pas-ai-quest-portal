@@ -38,6 +38,25 @@ Decision required:
 
 ## Resolved
 
+### 2026-08-27 — Initial post-approval correction target scope (resolves BA-013; clarifies spec §4)
+
+Decided by: User
+
+- Only an original `XPEntry` with `entryType = Grant` and `sourceType = TaskApproval` is directly correctable in the initial workflow.
+- TaskApproval Grant rows may expose a Correct XP action.
+- ManualAward and Raid grants are not correctable in this chunk. Their correction semantics are deferred until separately approved.
+- Reversal and Correction rows are never direct correction targets.
+- Repeat corrections target the same original TaskApproval Grant.
+- Corrections remain beneficiary-specific because every beneficiary has a distinct original Grant entry.
+- The manager enters the intended new effective amount, not a delta.
+- Current effective amount is the original grant plus all signed direct adjustments referencing that grant. A repeated correction calculates from this current effective amount.
+- The intended effective amount must be a non-negative integer; zero is allowed.
+- A reason is mandatory and storage permits at most 2,000 characters.
+- Original and adjustment entries remain append-only and visible; no ledger entry is mutated or deleted.
+- Participant and manager reporting reflects the resulting signed ledger movements.
+
+---
+
 ### 2026-08-27 — Manager Scoresheet reporting rules (resolves BA-012; amends spec §§3, 4, 5, 10 and 17)
 
 Decided by: User

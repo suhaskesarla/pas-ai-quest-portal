@@ -21,12 +21,15 @@ export type ScoresheetParticipant = {
   totalXp: number
 }
 export type ScoresheetSummary = { cycle: ManagerReportingCycle; rows: ScoresheetParticipant[] }
+export type ScoresheetLedgerItem = XpActivityItem & { correction: { currentEffectiveAmount: number } | null }
 export type ScoresheetDetail = {
   cycle: ManagerReportingCycle
   participant: { participantId: string; displayName: string; participantStatus: ParticipantStatus }
   bySource: SourceXpBreakdown
   byEntryType: EntryTypeBreakdown
   totalXp: number
-  items: XpActivityItem[]
+  items: ScoresheetLedgerItem[]
   nextCursor: string | null
 }
+export type CorrectionRequest = { newAmount: number; reason: string }
+export type CorrectionResponse = { id: string; originalEntryId: string; participantId: string; cycleId: string; amount: number; entryType: 'Reversal' | 'Correction'; reason: string; awardedByParticipantId: string; awardedAt: string }

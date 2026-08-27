@@ -84,7 +84,7 @@ public sealed class ManagerScoresheetTests : IAsyncLifetime
     [Fact]
     public async Task Detail_returns_labels_raw_entries_and_stable_keyset_pages()
     {
-        var seen = new List<XpActivityItem>();
+        var seen = new List<ScoresheetLedgerItem>();
         string? cursor = null;
         do
         {
@@ -101,6 +101,9 @@ public sealed class ManagerScoresheetTests : IAsyncLifetime
         Assert.Contains(seen, x => x.Source.Label == "Scoresheet Challenge · Scoresheet Task");
         Assert.Contains(seen, x => x.Source.Label == "Scoresheet Award");
         Assert.Contains(seen, x => x.Source.Label == "Scoresheet Raid");
+        ScoresheetLedgerItem grant = Assert.Single(seen, x => x.EntryType == XPEntryType.Grant && x.SourceType == XPSourceType.TaskApproval);
+        Assert.Equal(90, grant.Correction?.CurrentEffectiveAmount);
+        Assert.All(seen.Where(x => x.Id != grant.Id), x => Assert.Null(x.Correction));
         Assert.All(seen, x => Assert.True(x.AwardedAt > now.AddMonths(1))); // CycleId, not AwardedAt, owns attribution.
 
         ScoresheetParticipantDetail empty = await Service().ParticipantAsync(inactive, cycle, 50, null, default);

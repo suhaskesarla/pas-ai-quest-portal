@@ -1,6 +1,8 @@
 using System.Data;
 using System.Text.Json.Serialization;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using PAS.AIQuestPortal.Api.Authentication;
 using PAS.AIQuestPortal.Api.Configuration;
 using PAS.AIQuestPortal.Api.Data;
@@ -30,7 +32,7 @@ public sealed record CreateSubmissionRequest(Guid ChallengeId, Guid TaskId, Guid
 public sealed record ResubmitRequest(string Version, IReadOnlyList<EvidenceItem> Evidence, string? Comment);
 public enum ReviewAction { NeedsEvidence, Approve, Reject }
 public sealed record ReviewRequest(string Version, ReviewAction Action, string? Comment);
-public sealed record CorrectionRequest(int NewAmount, string Reason);
+public sealed record CorrectionRequest(int? NewAmount, string? Reason);
 public sealed record CorrectionView(Guid Id, Guid OriginalEntryId, Guid ParticipantId, Guid CycleId, int Amount, XPEntryType EntryType, string Reason, Guid AwardedByParticipantId, DateTimeOffset AwardedAt);
 
 public sealed class WorkflowException(int status, string code, string message) : Exception(message)
@@ -147,19 +149,41 @@ public sealed class SubmissionWorkflowService(QuestDbContext db, IQuestCurrentUs
     public async Task<CorrectionView> CorrectAsync(Guid entryId, CorrectionRequest request, CancellationToken ct)
     {
         Guid manager = Manager();
-        if (request.NewAmount < 0) throw Bad("InvalidCorrectionAmount", "NewAmount cannot be negative.");
+        if (request.NewAmount is null or < 0) throw Bad("InvalidCorrectionAmount", "NewAmount must be a non-negative integer.");
         if (string.IsNullOrWhiteSpace(request.Reason)) throw Bad("CorrectionReasonRequired", "A correction reason is required.");
+        string reason = request.Reason.Trim();
+        if (reason.Length > 2000) throw Bad("CorrectionReasonTooLong", "A correction reason cannot exceed 2,000 characters.");
+        try { return await CorrectTransactional(entryId, request.NewAmount.Value, reason, manager, ct); }
+        catch (SqlException error) when (IsCorrectionRace(error)) { throw Conflict("CorrectionConflict", "The award changed while the correction was being recorded; refresh and try again."); }
+        catch (DbUpdateException error) when (error.InnerException is SqlException sql && IsCorrectionRace(sql)) { throw Conflict("CorrectionConflict", "The award changed while the correction was being recorded; refresh and try again."); }
+    }
+
+    private async Task<CorrectionView> CorrectTransactional(Guid entryId, int newAmount, string reason, Guid manager, CancellationToken ct)
+    {
         DateTimeOffset now = clock.GetUtcNow(); await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        await AcquireCorrectionLock(entryId, tx, ct);
         XPEntry original = await db.XPEntries.SingleOrDefaultAsync(x => x.Id == entryId && x.EntryType == XPEntryType.Grant && x.SourceType == XPSourceType.TaskApproval, ct) ?? throw NotFound("XPEntryNotFound", "The TaskApproval grant was not found.");
         int adjustments = await db.XPEntries.Where(x => x.ReversesEntryId == original.Id).SumAsync(x => (int?)x.Amount, ct) ?? 0;
-        int delta = request.NewAmount - original.Amount - adjustments;
+        int delta = newAmount - original.Amount - adjustments;
         if (delta == 0) throw Conflict("CorrectionNoChange", "The effective award already has that value.");
-        var entry = new XPEntry { Id = Guid.NewGuid(), ParticipantId = original.ParticipantId, CycleId = original.CycleId, Amount = delta, EntryType = delta < 0 ? XPEntryType.Reversal : XPEntryType.Correction, SourceType = XPSourceType.TaskApproval, ChallengeId = original.ChallengeId, TaskId = original.TaskId, SubmissionId = original.SubmissionId, ChallengeParticipationId = original.ChallengeParticipationId, Reason = request.Reason.Trim(), AwardedByParticipantId = manager, AwardedAt = now, ReversesEntryId = original.Id };
+        var entry = new XPEntry { Id = Guid.NewGuid(), ParticipantId = original.ParticipantId, CycleId = original.CycleId, Amount = delta, EntryType = delta < 0 ? XPEntryType.Reversal : XPEntryType.Correction, SourceType = XPSourceType.TaskApproval, ChallengeId = original.ChallengeId, TaskId = original.TaskId, SubmissionId = original.SubmissionId, ChallengeParticipationId = original.ChallengeParticipationId, Reason = reason, AwardedByParticipantId = manager, AwardedAt = now, ReversesEntryId = original.Id };
         db.XPEntries.Add(entry);
         int sequence = (await db.CycleEvents.Where(x => x.CycleId == original.CycleId).MaxAsync(x => (int?)x.SequenceNumber, ct) ?? 0) + 1;
         db.CycleEvents.Add(new CycleEvent { Id = Guid.NewGuid(), CycleId = original.CycleId, SequenceNumber = sequence, EventType = CycleEventType.CorrectionRecorded, Reason = entry.Reason, ActorId = manager, OccurredAt = now, RelatedXPEntryId = entry.Id, CorrelationId = Guid.NewGuid() });
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         return new(entry.Id, original.Id, entry.ParticipantId, entry.CycleId, entry.Amount, entry.EntryType, entry.Reason, manager, now);
+    }
+
+    private static bool IsCorrectionRace(SqlException error) => error.Number is 1205 or 2601 or 2627 or 3960;
+
+    private async Task AcquireCorrectionLock(Guid entryId, IDbContextTransaction transaction, CancellationToken ct)
+    {
+        await using var command = db.Database.GetDbConnection().CreateCommand();
+        command.Transaction = transaction.GetDbTransaction();
+        command.CommandText = "DECLARE @result int; EXEC @result = sys.sp_getapplock @Resource = @Resource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 0, @DbPrincipal = 'public'; SELECT @result;";
+        var resource = command.CreateParameter(); resource.ParameterName = "@Resource"; resource.Value = $"quest-xp-correction:{entryId:N}"; command.Parameters.Add(resource);
+        int result = Convert.ToInt32(await command.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
+        if (result < 0) throw Conflict("CorrectionConflict", "Another manager is correcting this award; refresh and try again.");
     }
 
     private async Task AddGrants(Submission submission, Guid manager, DateTimeOffset now, CancellationToken ct)

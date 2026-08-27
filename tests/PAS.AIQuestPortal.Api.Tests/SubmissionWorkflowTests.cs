@@ -67,6 +67,53 @@ public sealed class SubmissionWorkflowTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Correction_validation_target_scope_repeat_chain_and_atomicity_are_enforced()
+    {
+        user.Set(data.Manager, QuestRoles.Manager);
+        XPEntry grant = await AddCorrectableGrant();
+        SubmissionWorkflowService service = Service();
+        Guid categoryId = Guid.NewGuid(), raidId = Guid.NewGuid();
+        db.AwardCategories.Add(new AwardCategory { Id = categoryId, CycleId = data.Cycle, Code = "DEFERRED", Name = "Deferred correction source" });
+        db.RaidSessions.Add(new RaidSession { Id = raidId, CycleId = data.Cycle, Name = "Deferred raid correction", OccurredAt = clock.UtcNow });
+        var manual = new XPEntry { Id = Guid.NewGuid(), ParticipantId = data.Beneficiary, CycleId = data.Cycle, Amount = 5, EntryType = XPEntryType.Grant, SourceType = XPSourceType.ManualAward, AwardCategoryId = categoryId, Reason = "Manual", AwardedByParticipantId = data.Manager, AwardedAt = clock.UtcNow };
+        var raid = new XPEntry { Id = Guid.NewGuid(), ParticipantId = data.Beneficiary, CycleId = data.Cycle, Amount = 5, EntryType = XPEntryType.Grant, SourceType = XPSourceType.Raid, RaidSessionId = raidId, Reason = "Raid", AwardedByParticipantId = data.Manager, AwardedAt = clock.UtcNow };
+        db.XPEntries.AddRange(manual, raid); await db.SaveChangesAsync();
+        await AssertCode("InvalidCorrectionAmount", () => service.CorrectAsync(grant.Id, new(null, "reason"), default));
+        await AssertCode("InvalidCorrectionAmount", () => service.CorrectAsync(grant.Id, new(-1, "reason"), default));
+        await AssertCode("CorrectionReasonRequired", () => service.CorrectAsync(grant.Id, new(10, "  "), default));
+        await AssertCode("CorrectionReasonTooLong", () => service.CorrectAsync(grant.Id, new(10, new string('x', 2001)), default));
+
+        await using (QuestDbContext competing = Context())
+        await using (var competingTransaction = await competing.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable))
+        {
+            string resource = $"quest-xp-correction:{grant.Id:N}";
+            await competing.Database.ExecuteSqlInterpolatedAsync($"DECLARE @result int; EXEC @result = sys.sp_getapplock @Resource = {resource}, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 0, @DbPrincipal = 'public';");
+            await AssertCode("CorrectionConflict", () => service.CorrectAsync(grant.Id, new(15, "Concurrent correction"), default));
+            await competingTransaction.RollbackAsync();
+        }
+
+        CorrectionView down = await service.CorrectAsync(grant.Id, new(15, "  Reduce award  "), default);
+        CorrectionView up = await service.CorrectAsync(grant.Id, new(20, "Restore part"), default);
+        Assert.Equal((-10, XPEntryType.Reversal, "Reduce award"), (down.Amount, down.EntryType, down.Reason));
+        Assert.Equal((5, XPEntryType.Correction), (up.Amount, up.EntryType));
+        Assert.Equal(25, (await db.XPEntries.FindAsync(grant.Id))!.Amount);
+        Assert.Equal(20, grant.Amount + await db.XPEntries.Where(x => x.ReversesEntryId == grant.Id).SumAsync(x => x.Amount));
+
+        int entries = await db.XPEntries.CountAsync(), events = await db.CycleEvents.CountAsync();
+        await AssertCode("CorrectionNoChange", () => service.CorrectAsync(grant.Id, new(20, "No change"), default));
+        Assert.Equal(entries, await db.XPEntries.CountAsync()); Assert.Equal(events, await db.CycleEvents.CountAsync());
+        await AssertCode("XPEntryNotFound", () => service.CorrectAsync(down.Id, new(0, "Unsupported adjustment"), default));
+        await AssertCode("XPEntryNotFound", () => service.CorrectAsync(up.Id, new(0, "Unsupported adjustment"), default));
+        await AssertCode("XPEntryNotFound", () => service.CorrectAsync(manual.Id, new(0, "Unsupported source"), default));
+        await AssertCode("XPEntryNotFound", () => service.CorrectAsync(raid.Id, new(0, "Unsupported source"), default));
+        await AssertCode("XPEntryNotFound", () => service.CorrectAsync(Guid.NewGuid(), new(0, "Unknown"), default));
+
+        await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER TR_CorrectionEventFail ON CycleEvents AFTER INSERT AS IF EXISTS (SELECT 1 FROM inserted WHERE EventType = 'CorrectionRecorded') THROW 51000, 'synthetic correction event failure', 1;");
+        await Assert.ThrowsAnyAsync<Exception>(() => service.CorrectAsync(grant.Id, new(0, "Atomic failure"), default));
+        Assert.Equal(entries, await db.XPEntries.CountAsync()); Assert.Equal(events, await db.CycleEvents.CountAsync());
+    }
+
+    [Fact]
     public async Task Individual_claimant_selected_subset_and_link_evidence_are_enforced()
     {
         SubmissionWorkflowService service = Service();
@@ -151,6 +198,15 @@ public sealed class SubmissionWorkflowTests : IAsyncLifetime
     private CreateSubmissionRequest Create(Guid task, Guid[] beneficiaries) => new(data.ChallengeFor(task), task, task == data.SoloTask ? data.SoloParticipation : data.Participation, beneficiaries, [new(EvidenceKind.Text, "Evidence", "Synthetic evidence")], null);
     private static async Task AssertCode(string code, Func<Task> operation) { WorkflowException error = await Assert.ThrowsAsync<WorkflowException>(operation); Assert.Equal(code, error.Code); }
     private QuestDbContext Context() => new(new DbContextOptionsBuilder<QuestDbContext>().UseSqlServer(connection).Options);
+
+    private async Task<XPEntry> AddCorrectableGrant()
+    {
+        Guid submissionId = Guid.NewGuid();
+        db.Submissions.Add(new Submission { Id = submissionId, CycleId = data.Cycle, ClaimantId = data.Claimant, ChallengeId = data.Challenge, TaskId = data.TeamTask, ChallengeParticipationId = data.Participation, Status = SubmissionStatus.Approved, SubmittedAt = clock.UtcNow, LastUpdatedAt = clock.UtcNow });
+        db.SubmissionBeneficiaries.Add(new SubmissionBeneficiary { SubmissionId = submissionId, ParticipantId = data.Beneficiary, CycleId = data.Cycle, AddedAt = clock.UtcNow, AddedByParticipantId = data.Claimant });
+        var grant = new XPEntry { Id = Guid.NewGuid(), ParticipantId = data.Beneficiary, CycleId = data.Cycle, Amount = data.TaskXp, EntryType = XPEntryType.Grant, SourceType = XPSourceType.TaskApproval, ChallengeId = data.Challenge, TaskId = data.TeamTask, SubmissionId = submissionId, ChallengeParticipationId = data.Participation, Reason = "Approved", AwardedByParticipantId = data.Manager, AwardedAt = clock.UtcNow };
+        db.XPEntries.Add(grant); await db.SaveChangesAsync(); return grant;
+    }
 
     private static async Task<Seed> SeedAsync(QuestDbContext db)
     {

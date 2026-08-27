@@ -107,6 +107,18 @@ The following approved design areas deliberately improve or generalise the histo
 
 These items do not imply that unresolved business rules have been decided.
 
+## Post-Approval Correction Decisions
+
+### Initial correctable source scope — BA-013
+
+Only original `Grant / TaskApproval` XP entries are direct correction targets in the initial workflow. TaskApproval Grant rows may show Correct XP; ManualAward and Raid grants may not. Reversal and Correction rows are never direct targets. ManualAward and Raid correction semantics are deferred pending separate approval.
+
+Repeat correction targets the same original TaskApproval Grant. This remains beneficiary-specific because each beneficiary has a separate original Grant.
+
+The manager supplies the intended new effective amount rather than a delta. Current effective amount is the original Grant plus every signed direct adjustment referencing it, and repeated correction is based on that current effective amount. The intended amount is a non-negative integer and may be zero. Reason is mandatory with a maximum storage length of 2,000 characters.
+
+All history remains append-only and visible. No original or adjustment row is mutated or deleted, and participant and manager reporting reflects the resulting signed ledger.
+
 ## Manager Scoresheet Decisions
 
 ### Roster and reporting purpose
@@ -300,6 +312,7 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | BA-010 | How long is approved/rejected evidence retained and when may it be purged? | `POLICY_PENDING` | Evidence retention/deletion implementation |
 | BA-011 | What lifecycle, editability, validation, participation and deletion rules govern manager challenge administration? Decision recorded. | `DECIDED` | Nothing |
 | BA-012 | Which roster, ledger breakdown, drill-down, ranking, filtering and export rules govern Manager Scoresheet? Decision recorded. | `DECIDED` | Nothing |
+| BA-013 | Which XP sources are directly correctable in the initial Post-Approval Correction workflow? Decision: original TaskApproval Grants only. | `DECIDED` | Nothing; ManualAward and Raid correction semantics are deferred |
 
 ## Implementation Gates
 
@@ -313,7 +326,7 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | Manager challenge administration | **BA-011 RESOLVED — SAFE TO IMPLEMENT** |
 | Manager Scoresheet | **BA-012 RESOLVED — SAFE TO IMPLEMENT** |
 | Manager review ownership | **BA-009 RESOLVED — SAFE TO IMPLEMENT** |
-| Beneficiary-specific XP correction | **DECIDED — SAFE TO IMPLEMENT USING THE APPROVED APPEND-ONLY LEDGER** |
+| Beneficiary-specific XP correction | **BA-013 RESOLVED — SAFE TO IMPLEMENT FOR ORIGINAL TASKAPPROVAL GRANTS** |
 | Step 7 evidence/attachment capability | **BUSINESS READY** |
 | `Custom` evidence validation | **DEFERRED — NOT IN INITIAL STEP 7 SHOWCASE** |
 | Production malware-scanner integration | **DEFERRED TO PRODUCTION READINESS; PRODUCTION ATTACHMENTS MUST REMAIN DISABLED WITHOUT IT** |
