@@ -38,6 +38,43 @@ Decision required:
 
 ## Resolved
 
+### 2026-08-27 — Manager Scoresheet reporting rules (resolves BA-012; amends spec §§3, 4, 5, 10 and 17)
+
+Decided by: User
+
+#### Roster and purpose
+
+- For the selected reporting cycle, include every `CycleParticipant`: Active, Withdrawn and Inactive.
+- Keep zero-XP participants visible and expose `participantStatus`.
+- The Scoresheet is a historical/audit reporting surface; later status changes must not make historical XP or roster reporting disappear.
+- The Individual Leaderboard remains Active-only and is not changed by this decision.
+
+#### Summary and totals
+
+- Show Task Approval XP, Manual Award XP, Raid XP, Adjustments and Total XP.
+- Every value derives exclusively from append-only `XPEntry` rows for the selected `CycleId`; signed `XPEntry.Amount` is authoritative and `AwardedAt` never determines cycle attribution.
+- Each source total includes the effective signed ledger movements belonging to its `TaskApproval`, `ManualAward` or `Raid` source type.
+- `netAdjustmentXp = reversalXp + correctionXp`, preserving each ledger row's sign. A Correction must not be assumed positive unless the domain model enforces that independently.
+- Adjustments are a cross-cutting disclosure of movements already included in the source totals, not an additional component to add to those totals again.
+- Corrections and Reversals remain visible and never replace or rewrite earlier ledger rows.
+- Raid passes are separate non-XP resources and do not appear in the Scoresheet.
+
+#### Participant drill-down
+
+- Include participant drill-down in the initial chunk.
+- Show the itemized append-only ledger with signed amount; Grant, Reversal or Correction entry type; TaskApproval, ManualAward or Raid source type; applicable Challenge and Task, Manual Award category or Raid session; reason; timestamp; and reversal reference where available.
+- Do not collapse correction/reversal chains.
+- Do not recompute the participant summary total from only the currently loaded detail page.
+
+#### Rank, filters, export and teams
+
+- Do not show rank in Manager Scoresheet; competition ranking remains owned by the Individual Leaderboard.
+- Reporting-cycle selection is required. Participant search and simple source-type filtering within drill-down are useful but not mandatory business gates.
+- Advanced filters and CSV/export are deferred from this chunk.
+- Do not calculate team XP or a team leaderboard. BA-003 remains unresolved and out of scope.
+
+---
+
 ### 2026-08-25 — Manager challenge administration lifecycle and validation (resolves BA-011; amends spec §§2, 6, 8, 9, 16 and 20)
 
 Decided by: User

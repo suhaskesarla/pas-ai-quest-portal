@@ -107,6 +107,34 @@ The following approved design areas deliberately improve or generalise the histo
 
 These items do not imply that unresolved business rules have been decided.
 
+## Manager Scoresheet Decisions
+
+### Roster and reporting purpose
+
+For a selected reporting cycle, include all Active, Withdrawn and Inactive `CycleParticipant`s, including zero-XP participants, and expose `participantStatus`. The Scoresheet is a historical/audit surface, so a later status change cannot remove historical roster or XP reporting. The Individual Leaderboard remains Active-only.
+
+### Ledger summary
+
+- Show Task Approval XP, Manual Award XP, Raid XP, Adjustments and Total XP.
+- Derive all values only from append-only `XPEntry` rows for the selected `CycleId`; `XPEntry.Amount` is authoritative and signed, and `AwardedAt` never determines cycle attribution.
+- Source totals include effective signed movements belonging to their source type.
+- `netAdjustmentXp = reversalXp + correctionXp`, preserving the signs stored in the ledger. Correction is not presumed positive.
+- Adjustments disclose movements already included in source totals and therefore must not be added to those source totals a second time.
+- Corrections and Reversals stay visible and never rewrite previous rows.
+- Raid-pass entitlement and usage remain separate non-XP resources and are absent from the Scoresheet.
+
+### Participant drill-down
+
+The initial chunk includes an itemized participant ledger showing signed amount, entry type, source type, applicable challenge/task, manual-award category or raid session, reason, timestamp and reversal reference. Correction/reversal chains remain uncollapsed. Summary totals must not be recomputed from only a loaded detail page.
+
+### Presentation scope
+
+- No rank appears in Manager Scoresheet; rank belongs to the Individual Leaderboard.
+- Reporting-cycle selection is required.
+- Participant search and simple drill-down source filtering are useful when straightforward, but advanced filters are deferred.
+- CSV/export is deferred.
+- Team XP and team leaderboard remain excluded under unresolved BA-003.
+
 ## Manager Challenge Administration Decisions
 
 ### Lifecycle and availability
@@ -271,6 +299,7 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | BA-009 | Are reviews assigned to a manager or shared across all managers? Decision: shared authorized-manager queue. | `DECIDED` | Nothing |
 | BA-010 | How long is approved/rejected evidence retained and when may it be purged? | `POLICY_PENDING` | Evidence retention/deletion implementation |
 | BA-011 | What lifecycle, editability, validation, participation and deletion rules govern manager challenge administration? Decision recorded. | `DECIDED` | Nothing |
+| BA-012 | Which roster, ledger breakdown, drill-down, ranking, filtering and export rules govern Manager Scoresheet? Decision recorded. | `DECIDED` | Nothing |
 
 ## Implementation Gates
 
@@ -282,6 +311,7 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | Submission/resubmission date eligibility | **BA-006 RESOLVED — SAFE TO IMPLEMENT** |
 | Solo challenge participation | **BA-002 RESOLVED — SAFE TO IMPLEMENT** |
 | Manager challenge administration | **BA-011 RESOLVED — SAFE TO IMPLEMENT** |
+| Manager Scoresheet | **BA-012 RESOLVED — SAFE TO IMPLEMENT** |
 | Manager review ownership | **BA-009 RESOLVED — SAFE TO IMPLEMENT** |
 | Beneficiary-specific XP correction | **DECIDED — SAFE TO IMPLEMENT USING THE APPROVED APPEND-ONLY LEDGER** |
 | Step 7 evidence/attachment capability | **BUSINESS READY** |
