@@ -182,7 +182,7 @@ export function ReviewQueue({ submissions, loading, error, api, onRefresh }: { s
   if (loading) return <WorkflowState text="Loading review queue…" />
   if (error) return <WorkflowError message={error} />
   if (!submissions.length) return <WorkflowState text="All caught up—nothing is waiting for review." />
-  return <div><header className="section-heading"><p className="eyebrow">{submissions.length} PENDING</p><h2>Review queue</h2></header><div className="workflow-stack">{submissions.map((submission) => <ManagerReview key={submission.id} submission={submission} api={api} onRefresh={onRefresh} />)}</div></div>
+  return <div><header className="section-heading"><p className="eyebrow">{submissions.length} PENDING</p><h2>Review Queue</h2></header><div className="workflow-stack">{submissions.map((submission) => <ManagerReview key={submission.id} submission={submission} api={api} onRefresh={onRefresh} />)}</div></div>
 }
 
 function ManagerReview({ submission, api, onRefresh }: { submission: SubmissionView; api: WorkflowApi; onRefresh: () => Promise<void> }) {

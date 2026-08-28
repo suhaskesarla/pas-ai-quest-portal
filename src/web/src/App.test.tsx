@@ -6,6 +6,9 @@ import { AuthProvider } from './auth/AuthContext'
 import { AuthApiError, type AuthApi } from './auth/authApi'
 import type { CurrentUser } from './auth/types'
 import type { ReportingApi } from './reporting/reportingApi'
+import type { ChallengeAdminApi } from './challenge-admin/challengeAdminApi'
+import type { ScoresheetApi } from './scoresheet/scoresheetApi'
+import { WorkflowApiError, type WorkflowApi } from './workflow/workflowApi'
 
 const participant: CurrentUser = { isAuthenticated: true, participantId: 'p-demo', displayName: 'Avery Demo', roles: ['Quest.Participant'] }
 const manager: CurrentUser = { isAuthenticated: true, participantId: 'm-demo', displayName: 'Morgan Demo', roles: ['Quest.Manager'] }
@@ -32,8 +35,21 @@ function fakeReports(): ReportingApi {
   }
 }
 
-function renderApp(api: AuthApi, demoModeAvailable = true) {
-  return render(<AuthProvider api={api} demoModeAvailable={demoModeAvailable}><App reports={fakeReports()} /></AuthProvider>)
+function fakeWorkflow(queue: Promise<unknown[]> | unknown[] = []): WorkflowApi {
+  return { getEligibleChallenges: vi.fn().mockResolvedValue([]), getMySubmissions: vi.fn().mockResolvedValue([]), createSubmission: vi.fn(), resubmit: vi.fn(), getReviewQueue: vi.fn().mockImplementation(() => Promise.resolve(queue).then((value) => value)), review: vi.fn() } as unknown as WorkflowApi
+}
+
+function fakeChallengeAdmin(): ChallengeAdminApi {
+  return { getOptions: vi.fn().mockResolvedValue({ cycles: [], scoringModes: [], evidenceRequirements: [], formationModes: [] }), getChallenges: vi.fn().mockResolvedValue([]), getChallenge: vi.fn(), createChallenge: vi.fn(), updateChallenge: vi.fn(), publishChallenge: vi.fn() } as unknown as ChallengeAdminApi
+}
+
+function fakeScoresheet(): ScoresheetApi {
+  const cycle = { id: 'cycle-1', code: 'AUG26', name: 'August Quest', status: 'Active' as const, startsAt: '2026-08-01T00:00:00Z', endsAt: '2026-08-31T00:00:00Z' }
+  return { getReportingCycles: vi.fn().mockResolvedValue({ defaultCycleId: cycle.id, cycles: [cycle] }), getScoresheet: vi.fn().mockResolvedValue({ cycle, rows: [] }), getParticipant: vi.fn(), correctXp: vi.fn(), getManualAwardOptions: vi.fn().mockResolvedValue({ cycle, participants: [], categories: [] }), createManualAward: vi.fn() } as unknown as ScoresheetApi
+}
+
+function renderApp(api: AuthApi, demoModeAvailable = true, app: { workflow?: WorkflowApi; challengeAdmin?: ChallengeAdminApi; scoresheet?: ScoresheetApi } = {}) {
+  return render(<AuthProvider api={api} demoModeAvailable={demoModeAvailable}><App api={app.workflow} challengeAdmin={app.challengeAdmin} scoresheet={app.scoresheet} reports={fakeReports()} /></AuthProvider>)
 }
 
 describe('Step 5A authentication shell', () => {
@@ -52,11 +68,11 @@ describe('Step 5A authentication shell', () => {
     await screen.findByRole('heading', { name: 'Welcome, Avery Demo' })
     await user.click(screen.getByRole('button', { name: 'My activity' }))
     await user.selectOptions(screen.getByRole('combobox', { name: 'Demo identity' }), 'manager')
-    await screen.findByRole('heading', { name: 'Welcome, Morgan Demo' })
+    await screen.findByRole('heading', { name: 'Manager Dashboard' })
     expect(api.establishDemoSession).toHaveBeenCalledWith('manager')
     expect(api.getCurrentUser).toHaveBeenCalledTimes(2)
     expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Review queue' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Review Queue' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Submit work' })).not.toBeInTheDocument()
   })
 
@@ -67,7 +83,7 @@ describe('Step 5A authentication shell', () => {
     await screen.findByRole('heading', { name: 'Welcome, Avery Demo' })
     await user.selectOptions(screen.getByRole('combobox', { name: 'Demo identity' }), 'manager')
     await waitFor(() => expect(api.getCurrentUser).toHaveBeenCalledTimes(2))
-    expect(screen.queryByRole('button', { name: 'Review queue' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Review Queue' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Submit work' })).toBeInTheDocument()
   })
 
@@ -107,6 +123,29 @@ describe('Step 5A authentication shell', () => {
     await screen.findByRole('heading', { name: 'Welcome, Avery Demo' })
     expect(screen.queryByText('Demo authentication')).not.toBeInTheDocument()
     expect(api.getDemoProfiles).not.toHaveBeenCalled()
-    expect(within(screen.getByRole('navigation')).queryByText('Review queue')).not.toBeInTheDocument()
+    expect(within(screen.getByRole('navigation')).queryByText('Review Queue')).not.toBeInTheDocument()
+  })
+})
+
+describe('manager navigation and dashboard', () => {
+  const managerApp = (workflow = fakeWorkflow()) => renderApp(fakeApi({ getCurrentUser: vi.fn().mockResolvedValue(manager) }), false, { workflow, challengeAdmin: fakeChallengeAdmin(), scoresheet: fakeScoresheet() })
+
+  it('shows only the four approved manager destinations and keeps contextual actions out of navigation', async () => {
+    managerApp(); const nav = await screen.findByRole('navigation'); expect(within(nav).getAllByRole('button').map((button) => button.textContent)).toEqual(['Dashboard', 'Challenges', 'Review Queue', 'Scoresheet']); for (const absent of ['New Challenge', 'Leaderboard', 'Analytics', 'Cycle Administration', 'Award XP', 'Correct XP']) expect(within(nav).queryByRole('button', { name: absent })).not.toBeInTheDocument()
+  })
+
+  it('renders three manager action cards and navigates to each existing destination', async () => {
+    managerApp(); const user = userEvent.setup(); expect(await screen.findByRole('heading', { name: 'Manager Dashboard' })).toBeInTheDocument(); expect(screen.getByText('Manage challenges, review participant submissions, and maintain the authoritative XP record.')).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Manage Challenges' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Review Submissions' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Scoresheet & XP' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Manage challenges' })); expect(await screen.findByRole('heading', { name: 'Challenge Administration' })).toBeInTheDocument(); expect(screen.getByRole('button', { name: 'Create Challenge' })).toBeInTheDocument(); await user.click(screen.getByRole('button', { name: 'Dashboard' })); await user.click(screen.getByRole('button', { name: 'Open review queue' })); expect(await screen.findByText('All caught up—nothing is waiting for review.')).toBeInTheDocument(); await user.click(screen.getByRole('button', { name: 'Dashboard' })); await user.click(screen.getByRole('button', { name: 'View scoresheet' })); expect(await screen.findByRole('button', { name: 'Award XP' })).toBeInTheDocument()
+  })
+
+  it.each([[[], 'No submissions are waiting for review.'], [[{}], '1 submission waiting for review.'], [[{}, {}], '2 submissions waiting for review.']] as const)('renders the authoritative review count for %s', async (queue, message) => { managerApp(fakeWorkflow([...queue])); expect(await screen.findByText(message)).toBeInTheDocument() })
+
+  it('shows loading without a false zero count', async () => {
+    const pending = new Promise<unknown[]>(() => undefined); managerApp(fakeWorkflow(pending)); expect(await screen.findByText('Checking submissions awaiting review…')).toBeInTheDocument(); expect(screen.queryByText('No submissions are waiting for review.')).not.toBeInTheDocument()
+  })
+
+  it('distinguishes review failure from zero and keeps Review Queue accessible', async () => {
+    const workflow = fakeWorkflow(); workflow.getReviewQueue = vi.fn().mockRejectedValue(new WorkflowApiError(503)); managerApp(workflow); const user = userEvent.setup(); expect(await screen.findByText('Review queue status is currently unavailable.')).toBeInTheDocument(); expect(screen.queryByText('No submissions are waiting for review.')).not.toBeInTheDocument(); expect(screen.getByRole('button', { name: 'Review Queue' })).toBeInTheDocument(); await user.click(screen.getByRole('button', { name: 'Open review queue' })); expect(await screen.findByRole('alert')).toBeInTheDocument()
   })
 })

@@ -120,6 +120,9 @@ legend { padding: 0 6px; font-weight: 700; }
 .reporting-stats span { color: #65758b; font-size: 11px; text-transform: uppercase; }
 .reporting-stats strong { font: 700 26px Sora, Inter, sans-serif; }
 .dashboard-grid, .group-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.manager-dashboard-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.manager-dashboard-grid article { display: flex; flex-direction: column; align-items: flex-start; }
+.manager-dashboard-grid article p { flex: 1; color: #53647a; font-size: 13px; }
 .reporting-card { padding: 18px 20px; border: 1px solid #dfe3e8; border-top: 3px solid #1b5fce; border-radius: 10px; background: white; }
 .reporting-card h2, .reporting-card h3 { margin: 4px 0 12px; }
 .muted { color: #65758b; font-size: 13px; }
@@ -219,7 +222,7 @@ mark { margin-left: 8px; padding: 2px 7px; border-radius: 999px; color: #0a1f44;
   .review-people { grid-template-columns: 1fr; }
   .cycle-context { align-items: stretch; flex-direction: column; }
   .cycle-context label { min-width: 0; }
-  .reporting-stats, .dashboard-grid, .group-grid { grid-template-columns: 1fr; }
+  .reporting-stats, .dashboard-grid, .group-grid, .manager-dashboard-grid { grid-template-columns: 1fr; }
   .scoresheet-breakdown { grid-template-columns: 1fr 1fr; }
   .scoresheet-heading { align-items: stretch; flex-direction: column; }
   .manual-award-confirm dl { grid-template-columns: 1fr; }

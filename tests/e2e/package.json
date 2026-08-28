@@ -8,7 +8,8 @@
     "test:docker-reporting": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-reporting.config.ts",
     "test:docker-manager-challenges": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-manager-challenges.config.ts",
     "test:docker-manager-scoresheet": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-manager-scoresheet.config.ts",
-    "test:docker-manual-award": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-manual-award.config.ts"
+    "test:docker-manual-award": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-manual-award.config.ts",
+    "test:docker-manager-navigation": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-manager-navigation.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1"
