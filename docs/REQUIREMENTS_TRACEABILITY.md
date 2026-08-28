@@ -107,6 +107,22 @@ The following approved design areas deliberately improve or generalise the histo
 
 These items do not imply that unresolved business rules have been decided.
 
+## Manual XP Award Decisions
+
+### Initial workflow — BA-014
+
+- Create one Manual XP Award for one Active `CycleParticipant` in an explicitly selected Active or Closing reporting cycle.
+- Withdrawn and Inactive participants remain visible historically but cannot receive a new ManualAward Grant. No historical-manager override applies.
+- Finalised cycles reject new ManualAward Grants but remain correctable through the approved correction workflow where applicable.
+- `CycleId` is never inferred from `AwardedAt`.
+- Require a configured category with `IsActive = true` and `CycleId` either null or equal to the selected cycle. Active global and selected-cycle categories are valid; inactive and other-cycle categories are not selectable. Historical labels remain visible. Free-text category is unavailable.
+- Require a positive integer amount and a mandatory reason of at most 2,000 characters. Zero and negative ManualAward Grants are invalid.
+- Create one append-only `Grant / ManualAward` XP entry. Only `Quest.Manager` may perform the action.
+
+Each command carries a unique client-generated `requestId`. First use creates the award; an exact replay of the same request and fields returns the existing result; reuse with different data conflicts. A new request ID follows success or deliberate reset. Identical award content remains valid as a separate business action when submitted with a different request ID.
+
+Reporting surfaces update through the XP ledger. ManualAward correction remains deferred under BA-013. Team/bulk awards, Raid XP creation, CSV import, approval workflow and score disputes remain out of scope.
+
 ## Post-Approval Correction Decisions
 
 ### Initial correctable source scope — BA-013
@@ -313,6 +329,7 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | BA-011 | What lifecycle, editability, validation, participation and deletion rules govern manager challenge administration? Decision recorded. | `DECIDED` | Nothing |
 | BA-012 | Which roster, ledger breakdown, drill-down, ranking, filtering and export rules govern Manager Scoresheet? Decision recorded. | `DECIDED` | Nothing |
 | BA-013 | Which XP sources are directly correctable in the initial Post-Approval Correction workflow? Decision: original TaskApproval Grants only. | `DECIDED` | Nothing; ManualAward and Raid correction semantics are deferred |
+| BA-014 | What eligibility, category, amount and idempotency rules govern the initial Manual XP Award workflow? Decision recorded. | `DECIDED` | Nothing |
 
 ## Implementation Gates
 
@@ -327,6 +344,7 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | Manager Scoresheet | **BA-012 RESOLVED — SAFE TO IMPLEMENT** |
 | Manager review ownership | **BA-009 RESOLVED — SAFE TO IMPLEMENT** |
 | Beneficiary-specific XP correction | **BA-013 RESOLVED — SAFE TO IMPLEMENT FOR ORIGINAL TASKAPPROVAL GRANTS** |
+| Manual XP Award | **BA-014 RESOLVED — SAFE TO IMPLEMENT** |
 | Step 7 evidence/attachment capability | **BUSINESS READY** |
 | `Custom` evidence validation | **DEFERRED — NOT IN INITIAL STEP 7 SHOWCASE** |
 | Production malware-scanner integration | **DEFERRED TO PRODUCTION READINESS; PRODUCTION ATTACHMENTS MUST REMAIN DISABLED WITHOUT IT** |

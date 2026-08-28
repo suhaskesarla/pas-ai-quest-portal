@@ -38,6 +38,44 @@ Decision required:
 
 ## Resolved
 
+### 2026-08-27 — Manual XP Award workflow (resolves BA-014; clarifies spec §§3 and 4)
+
+Decided by: User
+
+#### Recipient and cycle eligibility
+
+- A new Manual XP Award may be created for exactly one `CycleParticipant` whose status is Active in the explicitly selected reporting cycle.
+- Withdrawn and Inactive participants remain visible historically but cannot receive a new `ManualAward` Grant. No historical-manager override is included.
+- The selected cycle must be Active or Closing. Finalised cycles do not accept new ManualAward Grants.
+- Finalised cycles remain manager-correctable through the approved append-only correction workflow where that workflow applies.
+- `CycleId` is explicit and is never inferred from `AwardedAt`.
+
+#### Award category, amount and reason
+
+- A configured category is required; free-text category entry is unavailable.
+- A category is selectable only when `IsActive = true` and its `CycleId` is null or equals the selected cycle.
+- Active global and active selected-cycle categories are valid. Inactive and other-cycle categories are invalid for new awards.
+- Inactive or historical categories remain usable as labels for existing ledger entries.
+- Amount must be a positive integer. Zero and negative ManualAward Grants are invalid.
+- Reason is mandatory and limited to 2,000 characters.
+
+#### Ledger, authorization and idempotency
+
+- Creation writes one append-only `XPEntry` with `entryType = Grant` and `sourceType = ManualAward`; it never edits an existing entry.
+- Only an authorized `Quest.Manager` may create the award.
+- Each create command carries a client-generated unique `requestId`.
+- First use of a `requestId` creates the award. An exact replay with identical command fields returns the already-created result without another XP entry. Reuse with different command data returns a conflict.
+- After success or deliberate form reset, the client generates a new `requestId`.
+- Otherwise-identical awards are valid distinct business actions when they use different request IDs; matching participant, category, amount and reason does not itself constitute a duplicate.
+
+#### Reporting and exclusions
+
+- The ledger entry updates participant reporting, Individual Leaderboard and Manager Scoresheet through their existing `XPEntry` calculations.
+- ManualAward correction remains deferred under BA-013.
+- Team awards, bulk awards, Raid XP creation, CSV import, approval workflow and score-dispute behavior are excluded.
+
+---
+
 ### 2026-08-27 — Initial post-approval correction target scope (resolves BA-013; clarifies spec §4)
 
 Decided by: User

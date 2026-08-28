@@ -154,6 +154,16 @@ mark { margin-left: 8px; padding: 2px 7px; border-radius: 999px; color: #0a1f44;
 .scoresheet-detail { margin-top: 18px; border-top-color: #ffc72c; }
 .detail-heading { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 16px; }
 .scoresheet-breakdown { grid-template-columns: repeat(4, 1fr); }
+.scoresheet-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 0; }
+.manual-award-panel { padding: 18px; border: 2px solid #1b5fce; border-radius: 10px; background: white; }
+.manual-award-panel > header { display: flex; justify-content: space-between; align-items: start; gap: 14px; }
+.manual-award-panel h3, .manual-award-panel h4 { margin: 4px 0 10px; }
+.manual-award-cycle { display: grid; gap: 3px; margin: 10px 0; padding: 10px 12px; border-radius: 8px; background: #f4f5f7; }
+.manual-award-cycle span { color: #65758b; font-size: 10px; text-transform: uppercase; }
+.manual-award-confirm dl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.manual-award-confirm dl div { padding: 9px; border-radius: 7px; background: #f4f5f7; }
+.manual-award-confirm dt { color: #65758b; font-size: 10px; text-transform: uppercase; }
+.manual-award-confirm dd { margin: 3px 0 0; font-weight: 700; overflow-wrap: anywhere; }
 .correction-trigger { display: block; width: fit-content; margin-top: 9px; padding: 6px 11px; font-size: 11px; }
 .correction-dialog { margin-top: 18px; padding: 18px; border: 2px solid #e0b42b; border-radius: 10px; background: #fffdf5; }
 .correction-dialog > header { display: flex; justify-content: space-between; align-items: start; gap: 14px; }
@@ -211,6 +221,8 @@ mark { margin-left: 8px; padding: 2px 7px; border-radius: 999px; color: #0a1f44;
   .cycle-context label { min-width: 0; }
   .reporting-stats, .dashboard-grid, .group-grid { grid-template-columns: 1fr; }
   .scoresheet-breakdown { grid-template-columns: 1fr 1fr; }
+  .scoresheet-heading { align-items: stretch; flex-direction: column; }
+  .manual-award-confirm dl { grid-template-columns: 1fr; }
   .raid-grid { grid-template-columns: 1fr; }
   .activity-rows article { grid-template-columns: 1fr; }
   .admin-heading, .admin-filters { align-items: stretch; flex-direction: column; }

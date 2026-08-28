@@ -21,6 +21,7 @@ using PAS.AIQuestPortal.Api.Evidence;
 using PAS.AIQuestPortal.Api.Reporting;
 using PAS.AIQuestPortal.Api.Workflow;
 using PAS.AIQuestPortal.Api.ChallengeAdministration;
+using PAS.AIQuestPortal.Api.ManualAwards;
 using Xunit;
 
 namespace PAS.AIQuestPortal.Api.Tests;
@@ -31,7 +32,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
     private readonly ContractClock clock = new(new DateTimeOffset(2026, 8, 10, 10, 0, 0, TimeSpan.Zero));
     private WebApplication app = null!;
     private HttpClient client = null!;
-    private readonly Guid claimant = Guid.NewGuid(), beneficiary = Guid.NewGuid(), manager = Guid.NewGuid(), cycle = Guid.NewGuid(), challenge = Guid.NewGuid(), task = Guid.NewGuid(), attachmentTask = Guid.NewGuid(), participation = Guid.NewGuid();
+    private readonly Guid claimant = Guid.NewGuid(), beneficiary = Guid.NewGuid(), manager = Guid.NewGuid(), cycle = Guid.NewGuid(), challenge = Guid.NewGuid(), task = Guid.NewGuid(), attachmentTask = Guid.NewGuid(), participation = Guid.NewGuid(), awardCategory = Guid.NewGuid();
     private readonly ContractBlobStore blobs = new();
     private readonly ContractCommitHook commitHook = new();
     private readonly ContractSecurityLogger securityLogger=new();
@@ -59,6 +60,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         builder.Services.AddSubmissionWorkflow();
         builder.Services.AddManagerScoresheet();
         builder.Services.AddChallengeAdministration();
+        builder.Services.AddManualAwards();
         builder.Services.Configure<StorageOptions>(x => { });
         builder.Services.AddSingleton<IEvidenceMalwareScanner, DeterministicPassThroughEvidenceMalwareScanner>();
         builder.Services.AddSingleton<IEvidenceBlobStore>(blobs);
@@ -66,7 +68,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         builder.Services.AddSingleton<ISubmissionPreCommitHook>(commitHook); builder.Services.AddSingleton<ISubmissionPostCommitHook>(commitHook);
         builder.Services.AddSingleton<ILogger<SubmissionWorkflowService>>(securityLogger);
         builder.Services.RemoveAll<TimeProvider>(); builder.Services.AddSingleton<TimeProvider>(clock);
-        app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapSubmissionWorkflow(); app.MapManagerScoresheet(); app.MapChallengeAdministration();
+        app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapSubmissionWorkflow(); app.MapManagerScoresheet(); app.MapChallengeAdministration(); app.MapManualAwards();
         await app.StartAsync(); client = app.GetTestClient();
         await using AsyncServiceScope scope = app.Services.CreateAsyncScope(); QuestDbContext db = scope.ServiceProvider.GetRequiredService<QuestDbContext>();
         await db.Database.EnsureCreatedAsync(); await Seed(db);
@@ -186,6 +188,26 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         JsonElement correction = await OkJson(await SendJson(HttpMethod.Post, $"/api/manager/xp/{grantId}/corrections", manager, QuestRoles.Manager, new { newAmount = 0, reason = "  Remove award  " }));
         Assert.Equal(-25, correction.GetProperty("amount").GetInt32());
         Assert.Equal("Remove award", correction.GetProperty("reason").GetString());
+    }
+
+    [Fact]
+    public async Task Manual_award_http_contract_validates_binding_authorization_and_replay()
+    {
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync($"/api/manager/manual-awards/options?cycleId={cycle}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Send(HttpMethod.Get, $"/api/manager/manual-awards/options?cycleId={cycle}", claimant, QuestRoles.Participant)).StatusCode);
+        JsonElement options = await OkJson(await Send(HttpMethod.Get, $"/api/manager/manual-awards/options?cycleId={cycle}", manager, QuestRoles.Manager));
+        Assert.Contains(options.GetProperty("participants").EnumerateArray(), x => x.GetProperty("participantId").GetGuid() == claimant);
+        Assert.Equal(awardCategory, Assert.Single(options.GetProperty("categories").EnumerateArray()).GetProperty("awardCategoryId").GetGuid());
+
+        Guid requestId = Guid.NewGuid();
+        var valid = new { requestId, cycleId = cycle, participantId = claimant, awardCategoryId = awardCategory, amount = 10, reason = "  Great contribution.  " };
+        await AssertProblem(await SendJson(HttpMethod.Post, "/api/manager/manual-awards", manager, QuestRoles.Manager, new { requestId, cycleId = cycle, participantId = claimant, awardCategoryId = awardCategory, reason = "missing" }), HttpStatusCode.BadRequest, "InvalidManualAwardAmount");
+        await AssertProblem(await SendJson(HttpMethod.Post, "/api/manager/manual-awards", manager, QuestRoles.Manager, new { requestId, cycleId = cycle, participantId = claimant, awardCategoryId = awardCategory, amount = 1.5, reason = "fractional" }), HttpStatusCode.BadRequest, "InvalidManualAwardAmount");
+        JsonElement first = await OkJson(await SendJson(HttpMethod.Post, "/api/manager/manual-awards", manager, QuestRoles.Manager, valid));
+        JsonElement replay = await OkJson(await SendJson(HttpMethod.Post, "/api/manager/manual-awards", manager, QuestRoles.Manager, valid));
+        Assert.Equal(requestId, first.GetProperty("id").GetGuid()); Assert.Equal(first.ToString(), replay.ToString());
+        Assert.Equal("Grant", first.GetProperty("entryType").GetString()); Assert.Equal("ManualAward", first.GetProperty("sourceType").GetString()); Assert.Equal("Great contribution.", first.GetProperty("reason").GetString());
+        await AssertProblem(await SendJson(HttpMethod.Post, "/api/manager/manual-awards", manager, QuestRoles.Manager, new { requestId, cycleId = cycle, participantId = claimant, awardCategoryId = awardCategory, amount = 11, reason = "Great contribution." }), HttpStatusCode.Conflict, "ManualAwardRequestConflict");
     }
 
     [Fact]
@@ -348,13 +370,14 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
     {
         DateTimeOffset now = new(2026, 8, 1, 0, 0, 0, TimeSpan.Zero);
         db.Participants.AddRange(new Participant { Id = claimant, DisplayName = "Contract Claimant", CreatedAt = now }, new Participant { Id = beneficiary, DisplayName = "Contract Beneficiary", CreatedAt = now }, new Participant { Id = manager, DisplayName = "Contract Manager", CreatedAt = now });
-        db.Cycles.Add(new Cycle { Id = cycle, Code = "HTTP-26", Name = "Contract Cycle", Status = CycleStatus.Finalised, StartsAt = now, EndsAt = now.AddMonths(1), CreatedAt = now, CreatedByParticipantId = manager });
+        db.Cycles.Add(new Cycle { Id = cycle, Code = "HTTP-26", Name = "Contract Cycle", Status = CycleStatus.Active, StartsAt = now, EndsAt = now.AddMonths(1), CreatedAt = now, CreatedByParticipantId = manager });
         db.CycleParticipants.AddRange(new CycleParticipant { CycleId = cycle, ParticipantId = claimant, Status = CycleParticipantStatus.Active }, new CycleParticipant { CycleId = cycle, ParticipantId = beneficiary, Status = CycleParticipantStatus.Active }, new CycleParticipant { CycleId = cycle, ParticipantId = manager, Status = CycleParticipantStatus.Active });
         db.Challenges.Add(new Challenge { Id = challenge, CycleId = cycle, Name = "Contract Challenge", Description = "HTTP contract", Category = "Build", Status = ChallengeStatus.Open, OpenAt = now, DueAt = now.AddDays(20), CloseAt = now.AddDays(25), CreatedAt = now, CreatedByParticipantId = manager });
         db.ChallengeTasks.AddRange(new ChallengeTask { Id = task, ChallengeId = challenge, Name = "Contract Task", XP = 25, EvidenceRequirement = EvidenceRequirement.Text, ScoringMode = ScoringMode.WholeTeam, SortOrder = 1 }, new ChallengeTask { Id = attachmentTask, ChallengeId = challenge, Name = "Attachment Task", XP = 25, EvidenceRequirement = EvidenceRequirement.Attachment, ScoringMode = ScoringMode.WholeTeam, SortOrder = 2 });
         db.ChallengeTeamPolicies.Add(new ChallengeTeamPolicy { ChallengeId = challenge, FormationMode = FormationMode.Either, MinMembers = 2, MaxMembers = 4 });
         db.ChallengeParticipations.Add(new ChallengeParticipation { Id = participation, ChallengeId = challenge, CycleId = cycle, CreatedAt = now, CreatedByParticipantId = claimant });
         db.ChallengeParticipationMembers.AddRange(new ChallengeParticipationMember { ChallengeParticipationId = participation, ChallengeId = challenge, CycleId = cycle, ParticipantId = claimant, JoinedSnapshotAt = now }, new ChallengeParticipationMember { ChallengeParticipationId = participation, ChallengeId = challenge, CycleId = cycle, ParticipantId = beneficiary, JoinedSnapshotAt = now });
+        db.AwardCategories.Add(new AwardCategory { Id = awardCategory, CycleId = cycle, Code = "BONUS", Name = "Bonus Award", IsActive = true });
         await db.SaveChangesAsync();
     }
 

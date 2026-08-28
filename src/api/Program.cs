@@ -13,6 +13,7 @@ using PAS.AIQuestPortal.Api.HistoricalImport;
 using PAS.AIQuestPortal.Api.Workflow;
 using PAS.AIQuestPortal.Api.Reporting;
 using PAS.AIQuestPortal.Api.ChallengeAdministration;
+using PAS.AIQuestPortal.Api.ManualAwards;
 
 if (args.Length > 0 && string.Equals(args[0], "historical-import", StringComparison.OrdinalIgnoreCase))
 {
@@ -33,6 +34,7 @@ builder.Services.AddSubmissionWorkflow();
 builder.Services.AddParticipantReporting();
 builder.Services.AddManagerScoresheet();
 builder.Services.AddChallengeAdministration();
+builder.Services.AddManualAwards();
 
 builder.Services.AddCors(options =>
 {
@@ -92,6 +94,7 @@ app.MapSubmissionWorkflow();
 app.MapParticipantReporting();
 app.MapManagerScoresheet();
 app.MapChallengeAdministration();
+app.MapManualAwards();
 
 app.Run();
 return 0;

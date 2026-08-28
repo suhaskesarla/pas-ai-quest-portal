@@ -1,4 +1,4 @@
-import type { CorrectionRequest, CorrectionResponse, ManagerReportingCycles, ScoresheetDetail, ScoresheetSummary } from './types'
+import type { CorrectionRequest, CorrectionResponse, ManagerReportingCycles, ManualAwardCommand, ManualAwardOptions, ManualAwardResponse, ScoresheetDetail, ScoresheetSummary } from './types'
 
 export class ScoresheetApiError extends Error {
   constructor(public readonly status: number, public readonly detail?: string, public readonly code?: string) {
@@ -23,6 +23,8 @@ export const scoresheetApi = {
   getScoresheet: (cycleId: string) => request<ScoresheetSummary>(`/api/manager/scoresheet?cycleId=${encodeURIComponent(cycleId)}`),
   getParticipant: (participantId: string, cycleId: string, cursor?: string | null) => request<ScoresheetDetail>(`/api/manager/scoresheet/${encodeURIComponent(participantId)}?cycleId=${encodeURIComponent(cycleId)}&limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   correctXp: (entryId: string, payload: CorrectionRequest) => request<CorrectionResponse>(`/api/manager/xp/${encodeURIComponent(entryId)}/corrections`, { method: 'POST', payload }),
+  getManualAwardOptions: (cycleId: string) => request<ManualAwardOptions>(`/api/manager/manual-awards/options?cycleId=${encodeURIComponent(cycleId)}`),
+  createManualAward: (payload: ManualAwardCommand) => request<ManualAwardResponse>('/api/manager/manual-awards', { method: 'POST', payload }),
 }
 export type ScoresheetApi = typeof scoresheetApi
 
