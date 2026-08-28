@@ -5,6 +5,7 @@ import type { Dashboard, LeaderboardEntry, ParticipantTeam, ReportingCycles, XpA
 
 const date = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 const signedXp = (amount: number) => amount >= 0 ? `+${amount} XP` : `−${Math.abs(amount)} XP`
+const sourceTypeLabel = (sourceType: XpActivityItem['sourceType']) => ({ TaskApproval: 'Task Approval', ManualAward: 'Manual Award', Raid: 'Raid' })[sourceType]
 
 function State({ children, error, retry }: { children: React.ReactNode; error?: boolean; retry?: () => void }) {
   return <div className={`reporting-state${error ? ' reporting-state--error' : ''}`} role={error ? 'alert' : 'status'}><p>{children}</p>{retry && <button className="button button--quiet" type="button" onClick={retry}>Retry</button>}</div>
@@ -94,7 +95,7 @@ function LeaderboardView({ cycleId, api }: { cycleId: string; api: ReportingApi 
 }
 
 function ActivityRows({ items, compact = false }: { items: XpActivityItem[]; compact?: boolean }) {
-  return <div className={`activity-rows${compact ? ' activity-rows--compact' : ''}`}>{items.map((item) => <article key={item.id}><strong className={item.amount < 0 ? 'xp-negative' : 'xp-positive'}>{signedXp(item.amount)}</strong><div><h3>{item.source.label}</h3><p>{item.reason}</p><span>{item.entryType} · {date(item.awardedAt)}</span></div></article>)}</div>
+  return <div className={`activity-rows${compact ? ' activity-rows--compact' : ''}`}>{items.map((item) => <article key={item.id}><strong className={item.amount < 0 ? 'xp-negative' : 'xp-positive'}>{signedXp(item.amount)}</strong><div><h3>{item.source.label}</h3><p>{item.reason}</p><span>{sourceTypeLabel(item.sourceType)} · {item.entryType} · {date(item.awardedAt)}</span></div></article>)}</div>
 }
 
 function XpActivityView({ cycleId, api }: { cycleId: string; api: ReportingApi }) {

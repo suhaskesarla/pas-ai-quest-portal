@@ -33,3 +33,10 @@ export type ScoresheetDetail = {
 }
 export type CorrectionRequest = { newAmount: number; reason: string }
 export type CorrectionResponse = { id: string; originalEntryId: string; participantId: string; cycleId: string; amount: number; entryType: 'Reversal' | 'Correction'; reason: string; awardedByParticipantId: string; awardedAt: string }
+export type ManualAwardOptions = {
+  cycle: { id: string; code: string; name: string; status: CycleStatus }
+  participants: Array<{ participantId: string; displayName: string; participantStatus: ParticipantStatus }>
+  categories: Array<{ awardCategoryId: string; code: string; name: string }>
+}
+export type ManualAwardCommand = { requestId: string; cycleId: string; participantId: string; awardCategoryId: string; amount: number; reason: string }
+export type ManualAwardResponse = { id: string; requestId: string; participantId: string; cycleId: string; amount: number; entryType: 'Grant'; sourceType: 'ManualAward'; awardCategory: ManualAwardOptions['categories'][number]; reason: string; awardedByParticipantId: string; awardedAt: string }

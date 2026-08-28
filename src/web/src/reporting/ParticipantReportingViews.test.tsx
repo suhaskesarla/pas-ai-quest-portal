@@ -109,7 +109,21 @@ describe('participant reporting surfaces', () => {
     expect(await screen.findByText('+10 XP')).toBeInTheDocument()
     expect(screen.getByText('−20 XP')).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { name: 'Early Bird' })).toHaveLength(2)
-    expect(screen.getByText(/Reversal ·/)).toBeInTheDocument()
+    expect(screen.getByText(/Manual Award · Reversal ·/)).toBeInTheDocument()
+  })
+
+  it('shows friendly server source provenance without losing Manual Award details or adjustment semantics', async () => {
+    const manual = activity('manual', 10)
+    const task = { ...activity('task', 25, 'Correction'), sourceType: 'TaskApproval' as const, source: { ...manual.source, label: 'Prompt Quest · Prompt task' } }
+    const raid = { ...activity('raid', 5, 'Grant'), sourceType: 'Raid' as const, source: { ...manual.source, label: 'Raid Session 1' } }
+    render(<ParticipantReportingArea page="xp-activity" api={api({ getXpActivity: vi.fn().mockResolvedValue({ items: [manual, task, raid], nextCursor: null }) })} onNavigate={vi.fn()} />)
+    expect(await screen.findByText('Manual Award · Grant ·', { exact: false })).toBeInTheDocument()
+    expect(screen.getByText('Task Approval · Correction ·', { exact: false })).toBeInTheDocument()
+    expect(screen.getByText('Raid · Grant ·', { exact: false })).toBeInTheDocument()
+    expect(screen.getByText('+10 XP')).toBeInTheDocument()
+    const manualRow = screen.getByRole('heading', { name: 'Early Bird' }).closest('article')!
+    expect(within(manualRow).getByText('Grant reason')).toBeInTheDocument()
+    expect(screen.queryByText(/^Grant ·/)).not.toBeInTheDocument()
   })
 
   it('loads the next activity page using nextCursor', async () => {
