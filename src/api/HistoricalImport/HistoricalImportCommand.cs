@@ -430,7 +430,23 @@ public static class HistoricalImportCommand
             {
                 Guid cycleId = Id(plan, "cycle", row.Cycle.Key);
                 var cpKey = new object[] { cycleId, row.Participant.ParticipantId };
-                await AddIfMissingAsync(db.CycleParticipants, cpKey, () => new CycleParticipant { CycleId = cycleId, ParticipantId = row.Participant.ParticipantId, Status = CycleParticipantStatus.Active, JoinedAt = row.Cycle.StartsAt });
+                if (await db.CycleParticipants.FindAsync(cpKey) is null)
+                {
+                    db.CycleParticipants.Add(new CycleParticipant { CycleId = cycleId, ParticipantId = row.Participant.ParticipantId, Status = CycleParticipantStatus.Active, JoinedAt = row.Cycle.StartsAt });
+                    db.CycleParticipantEvents.Add(new CycleParticipantEvent
+                    {
+                        Id = Id(plan, "cycle-participant-enrolled", $"{row.Cycle.Key}:{row.Participant.ParticipantId:N}"),
+                        CycleId = cycleId,
+                        ParticipantId = row.Participant.ParticipantId,
+                        SequenceNumber = 1,
+                        EventType = CycleParticipantEventType.Enrolled,
+                        FromStatus = null,
+                        ToStatus = CycleParticipantStatus.Active,
+                        Reason = "Historical import enrollment",
+                        ActorId = managerIdentity.ParticipantId,
+                        OccurredAt = row.Cycle.StartsAt
+                    });
+                }
             }
 
             foreach (ChallengeDefinition c in manifest.Challenges)

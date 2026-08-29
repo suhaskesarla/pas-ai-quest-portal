@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using PAS.AIQuestPortal.Api.Authentication;
 using PAS.AIQuestPortal.Api.Configuration;
 using PAS.AIQuestPortal.Api.Data;
@@ -137,6 +138,49 @@ public sealed class SubmissionWorkflowTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Submission_revalidates_all_memberships_inside_write_transaction()
+    {
+        var hook = new BeforeTransactionHook(async ct =>
+        {
+            await using QuestDbContext competing = Context(); CycleParticipant membership = await competing.CycleParticipants.SingleAsync(x => x.CycleId == data.Cycle && x.ParticipantId == data.Beneficiary, ct);
+            membership.Status = CycleParticipantStatus.Inactive; membership.LeftAt = clock.UtcNow;
+            competing.CycleParticipantEvents.Add(new CycleParticipantEvent { Id = Guid.NewGuid(), CycleId = data.Cycle, ParticipantId = data.Beneficiary, SequenceNumber = 2, EventType = CycleParticipantEventType.StatusChanged, FromStatus = CycleParticipantStatus.Active, ToStatus = CycleParticipantStatus.Inactive, Reason = "Synthetic concurrent deactivation", ActorId = data.Manager, OccurredAt = clock.UtcNow });
+            await competing.SaveChangesAsync(ct);
+        });
+        var service = new SubmissionWorkflowService(db, user, clock, beforeWriteTransactionHook: hook);
+        WorkflowException error = await Assert.ThrowsAsync<WorkflowException>(() => service.CreateAsync(Create(data.TeamTask, [data.Claimant, data.Beneficiary]), default));
+        Assert.Equal("IneligibleBeneficiary", error.Code); Assert.Empty(await db.Submissions.ToListAsync()); Assert.Empty(await db.SubmissionBeneficiaries.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Submission_and_deactivation_overlap_on_shared_membership_locks_without_partial_writes()
+    {
+        await using QuestDbContext administration = Context();
+        await using var administrationTransaction = await administration.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        string cycleResource = $"quest-cycle-admin:{data.Cycle:N}";
+        string participantResource = $"quest-cycle-participant:{data.Cycle:N}:{data.Beneficiary:N}";
+        await AcquireLock(administration, administrationTransaction, cycleResource);
+        await AcquireLock(administration, administrationTransaction, participantResource);
+
+        CycleParticipant membership = await administration.CycleParticipants.SingleAsync(x => x.CycleId == data.Cycle && x.ParticipantId == data.Beneficiary);
+        membership.Status = CycleParticipantStatus.Inactive; membership.LeftAt = clock.UtcNow;
+        administration.CycleParticipantEvents.Add(new CycleParticipantEvent { Id = Guid.NewGuid(), CycleId = data.Cycle, ParticipantId = data.Beneficiary, SequenceNumber = 2, EventType = CycleParticipantEventType.StatusChanged, FromStatus = CycleParticipantStatus.Active, ToStatus = CycleParticipantStatus.Inactive, Reason = "Controlled overlapping deactivation", ActorId = data.Manager, OccurredAt = clock.UtcNow });
+        await administration.SaveChangesAsync();
+
+        await using QuestDbContext submitting = Context();
+        var submissionService = new SubmissionWorkflowService(submitting, new MutableUser(data.Claimant, QuestRoles.Participant), clock);
+        Task<SubmissionView> submission = submissionService.CreateAsync(Create(data.TeamTask, [data.Beneficiary, data.Claimant]), default);
+        await Task.Delay(100);
+        Assert.False(submission.IsCompleted);
+
+        await administrationTransaction.CommitAsync();
+        WorkflowException error = await Assert.ThrowsAsync<WorkflowException>(() => submission);
+        Assert.Equal("IneligibleBeneficiary", error.Code);
+        Assert.Empty(await db.Submissions.ToListAsync());
+        Assert.Empty(await db.SubmissionBeneficiaries.ToListAsync());
+    }
+
+    [Fact]
     public async Task Identity_eligibility_team_policy_and_evidence_fail_closed()
     {
         SubmissionWorkflowService service = Service();
@@ -214,17 +258,33 @@ public sealed class SubmissionWorkflowTests : IAsyncLifetime
         var s = new Seed();
         db.Participants.AddRange(new Participant { Id = s.Claimant, DisplayName = "Synthetic Claimant", CreatedAt = now }, new Participant { Id = s.Beneficiary, DisplayName = "Synthetic Beneficiary", CreatedAt = now }, new Participant { Id = s.Inactive, DisplayName = "Synthetic Inactive", CreatedAt = now }, new Participant { Id = s.Manager, DisplayName = "Synthetic Manager", CreatedAt = now });
         db.Cycles.Add(new Cycle { Id = s.Cycle, Code = "SYN-26", Name = "Synthetic cycle", Status = CycleStatus.Finalised, StartsAt = now, EndsAt = now.AddMonths(1), CreatedAt = now, CreatedByParticipantId = s.Manager });
-        db.CycleParticipants.AddRange(new CycleParticipant { CycleId = s.Cycle, ParticipantId = s.Claimant, Status = CycleParticipantStatus.Active }, new CycleParticipant { CycleId = s.Cycle, ParticipantId = s.Beneficiary, Status = CycleParticipantStatus.Active }, new CycleParticipant { CycleId = s.Cycle, ParticipantId = s.Inactive, Status = CycleParticipantStatus.Withdrawn }, new CycleParticipant { CycleId = s.Cycle, ParticipantId = s.Manager, Status = CycleParticipantStatus.Active });
+        foreach (Guid participantId in new[] { s.Claimant, s.Beneficiary, s.Inactive, s.Manager })
+        {
+            db.CycleParticipants.Add(new CycleParticipant { CycleId = s.Cycle, ParticipantId = participantId, Status = CycleParticipantStatus.Active, JoinedAt = now });
+            db.CycleParticipantEvents.Add(new CycleParticipantEvent { Id = Guid.NewGuid(), CycleId = s.Cycle, ParticipantId = participantId, SequenceNumber = 1, EventType = CycleParticipantEventType.Enrolled, FromStatus = null, ToStatus = CycleParticipantStatus.Active, Reason = "Synthetic test enrollment", ActorId = s.Manager, OccurredAt = now });
+        }
         db.Challenges.AddRange(new Challenge { Id = s.Challenge, CycleId = s.Cycle, Name = "Shared quest", Description = "Synthetic", Category = "Build", Status = ChallengeStatus.Open, OpenAt = now, DueAt = now.AddDays(15), CloseAt = now.AddDays(20), CreatedAt = now, CreatedByParticipantId = s.Manager }, new Challenge { Id = s.SoloChallenge, CycleId = s.Cycle, Name = "Solo quest", Description = "Synthetic", Category = "Build", Status = ChallengeStatus.Open, OpenAt = now, DueAt = now.AddDays(15), CloseAt = now.AddDays(20), CreatedAt = now, CreatedByParticipantId = s.Manager });
         db.ChallengeTasks.AddRange(new ChallengeTask { Id = s.TeamTask, ChallengeId = s.Challenge, Name = "Shared task", XP = s.TaskXp, EvidenceRequirement = EvidenceRequirement.Text, ScoringMode = ScoringMode.WholeTeam, SortOrder = 1 }, new ChallengeTask { Id = s.SoloTask, ChallengeId = s.SoloChallenge, Name = "Solo task", XP = s.TaskXp, EvidenceRequirement = EvidenceRequirement.Text, ScoringMode = ScoringMode.WholeTeam, SortOrder = 1 });
         db.ChallengeTeamPolicies.AddRange(new ChallengeTeamPolicy { ChallengeId = s.Challenge, FormationMode = FormationMode.Either, MinMembers = 2, MaxMembers = 4 }, new ChallengeTeamPolicy { ChallengeId = s.SoloChallenge, FormationMode = FormationMode.Either, MinMembers = 2, MaxMembers = 4, AllowSolo = false });
         db.ChallengeParticipations.AddRange(new ChallengeParticipation { Id = s.Participation, ChallengeId = s.Challenge, CycleId = s.Cycle, CreatedAt = now, CreatedByParticipantId = s.Claimant }, new ChallengeParticipation { Id = s.AlternateParticipation, ChallengeId = s.Challenge, CycleId = s.Cycle, CreatedAt = now, CreatedByParticipantId = s.Claimant }, new ChallengeParticipation { Id = s.SoloParticipation, ChallengeId = s.SoloChallenge, CycleId = s.Cycle, CreatedAt = now, CreatedByParticipantId = s.Claimant });
         db.ChallengeParticipationMembers.AddRange(new ChallengeParticipationMember { ChallengeParticipationId = s.Participation, ChallengeId = s.Challenge, CycleId = s.Cycle, ParticipantId = s.Claimant, JoinedSnapshotAt = now }, new ChallengeParticipationMember { ChallengeParticipationId = s.Participation, ChallengeId = s.Challenge, CycleId = s.Cycle, ParticipantId = s.Beneficiary, JoinedSnapshotAt = now }, new ChallengeParticipationMember { ChallengeParticipationId = s.AlternateParticipation, ChallengeId = s.Challenge, CycleId = s.Cycle, ParticipantId = s.Claimant, JoinedSnapshotAt = now }, new ChallengeParticipationMember { ChallengeParticipationId = s.AlternateParticipation, ChallengeId = s.Challenge, CycleId = s.Cycle, ParticipantId = s.Manager, JoinedSnapshotAt = now }, new ChallengeParticipationMember { ChallengeParticipationId = s.SoloParticipation, ChallengeId = s.SoloChallenge, CycleId = s.Cycle, ParticipantId = s.Claimant, JoinedSnapshotAt = now });
+        await db.SaveChangesAsync();
+        CycleParticipant inactive = (await db.CycleParticipants.FindAsync(s.Cycle, s.Inactive))!;
+        inactive.Status = CycleParticipantStatus.Withdrawn; inactive.LeftAt = now;
+        db.CycleParticipantEvents.Add(new CycleParticipantEvent { Id = Guid.NewGuid(), CycleId = s.Cycle, ParticipantId = s.Inactive, SequenceNumber = 2, EventType = CycleParticipantEventType.StatusChanged, FromStatus = CycleParticipantStatus.Active, ToStatus = CycleParticipantStatus.Withdrawn, Reason = "Synthetic inactive fixture", ActorId = s.Manager, OccurredAt = now });
         await db.SaveChangesAsync(); return s;
     }
 
     private sealed class MutableUser(Guid participant, params string[] roles) : IQuestCurrentUser { public QuestUserIdentity Identity { get; private set; } = new(true, participant, "Synthetic", roles); public void Set(Guid id, params string[] newRoles) => Identity = new(true, id, "Synthetic", newRoles); }
     private sealed class FixedClock(DateTimeOffset value) : TimeProvider { public DateTimeOffset UtcNow { get; set; } = value; public override DateTimeOffset GetUtcNow() => UtcNow; }
+    private sealed class BeforeTransactionHook(Func<CancellationToken, Task> callback) : ISubmissionBeforeWriteTransactionHook { public Task BeforeTransactionAsync(CancellationToken ct) => callback(ct); }
+    private static async Task AcquireLock(QuestDbContext context, Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction, string resourceName)
+    {
+        await using var command = context.Database.GetDbConnection().CreateCommand(); command.Transaction = transaction.GetDbTransaction();
+        command.CommandText = "DECLARE @result int; EXEC @result = sys.sp_getapplock @Resource = @Resource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = -1, @DbPrincipal = 'public'; SELECT @result;";
+        var resource = command.CreateParameter(); resource.ParameterName = "@Resource"; resource.Value = resourceName; command.Parameters.Add(resource);
+        Assert.True(Convert.ToInt32(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture) >= 0);
+    }
     private sealed class Seed
     {
         public Guid Claimant { get; } = Guid.NewGuid(); public Guid Beneficiary { get; } = Guid.NewGuid(); public Guid Inactive { get; } = Guid.NewGuid(); public Guid Manager { get; } = Guid.NewGuid(); public Guid Cycle { get; } = Guid.NewGuid(); public Guid Challenge { get; } = Guid.NewGuid(); public Guid SoloChallenge { get; } = Guid.NewGuid(); public Guid TeamTask { get; } = Guid.NewGuid(); public Guid SoloTask { get; } = Guid.NewGuid(); public Guid Participation { get; } = Guid.NewGuid(); public Guid AlternateParticipation { get; } = Guid.NewGuid(); public Guid SoloParticipation { get; } = Guid.NewGuid(); public int TaskXp { get; } = 25;

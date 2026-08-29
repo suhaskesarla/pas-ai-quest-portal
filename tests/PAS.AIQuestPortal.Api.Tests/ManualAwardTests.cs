@@ -2,6 +2,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using PAS.AIQuestPortal.Api.Authentication;
 using PAS.AIQuestPortal.Api.Configuration;
+using PAS.AIQuestPortal.Api.CycleAdministration;
 using PAS.AIQuestPortal.Api.Data;
 using PAS.AIQuestPortal.Api.ManualAwards;
 using PAS.AIQuestPortal.Api.Reporting;
@@ -90,13 +91,44 @@ public sealed class ManualAwardTests : IAsyncLifetime
         await AssertCode("ManualAwardReasonTooLong", () => Service().CreateAsync(Valid() with { Reason = new string('x', 2001) }, default));
     }
 
+    [Fact]
+    public async Task Finalisation_and_deactivation_serialize_against_manual_award_creation()
+    {
+        Cycle closingEntity = await db.Cycles.AsNoTracking().SingleAsync(x => x.Id == closing); string closingVersion = Convert.ToBase64String(closingEntity.RowVersion);
+        await using QuestDbContext finaliseDb = Context(); await using QuestDbContext awardDb = Context();
+        var finaliseService = new CycleAdministrationService(finaliseDb, new User(manager, QuestRoles.Manager), new FixedClock(now));
+        var awardService = new ManualAwardService(awardDb, new User(manager, QuestRoles.Manager), new FixedClock(now));
+        Task<ManagerCycleDetail> finaliseTask = finaliseService.FinaliseAsync(closing, new(closingVersion, "Finalise concurrently"), default);
+        Task<ManualAwardView> awardTask = awardService.CreateAsync(new(Guid.NewGuid(), closing, active, globalCategory, 7, "Concurrent award"), default);
+        try { await awardTask; } catch (WorkflowException error) { Assert.Equal("ManualAwardCycleUnavailable", error.Code); }
+        await finaliseTask; Assert.Equal(CycleStatus.Finalised, (await db.Cycles.AsNoTracking().SingleAsync(x => x.Id == closing)).Status);
+
+        CycleParticipant membership = await db.CycleParticipants.AsNoTracking().SingleAsync(x => x.CycleId == cycle && x.ParticipantId == active); string participantVersion = Convert.ToBase64String(membership.RowVersion);
+        await using QuestDbContext statusDb = Context(); await using QuestDbContext secondAwardDb = Context();
+        var statusService = new CycleAdministrationService(statusDb, new User(manager, QuestRoles.Manager), new FixedClock(now));
+        var secondAwardService = new ManualAwardService(secondAwardDb, new User(manager, QuestRoles.Manager), new FixedClock(now));
+        Task<ManagerCycleParticipant> statusTask = statusService.ChangeParticipantStatusAsync(cycle, active, new(participantVersion, CycleParticipantStatus.Inactive, "Deactivate concurrently"), default);
+        Task<ManualAwardView> secondAwardTask = secondAwardService.CreateAsync(new(Guid.NewGuid(), cycle, active, globalCategory, 8, "Concurrent participant award"), default);
+        try { await secondAwardTask; } catch (WorkflowException error) { Assert.Equal("ManualAwardParticipantIneligible", error.Code); }
+        await statusTask; Assert.Equal(CycleParticipantStatus.Inactive, (await db.CycleParticipants.AsNoTracking().SingleAsync(x => x.CycleId == cycle && x.ParticipantId == active)).Status);
+    }
+
     private async Task Seed()
     {
         db.Participants.AddRange(new Participant { Id = manager, DisplayName = "Manager", CreatedAt = now }, new Participant { Id = active, DisplayName = "Active", CreatedAt = now }, new Participant { Id = withdrawn, DisplayName = "Withdrawn", CreatedAt = now }, new Participant { Id = inactive, DisplayName = "Inactive", CreatedAt = now }, new Participant { Id = outsider, DisplayName = "Outsider", CreatedAt = now });
         db.Cycles.AddRange(Cycle(cycle, "ACTIVE", CycleStatus.Active), Cycle(closing, "CLOSING", CycleStatus.Closing), Cycle(finalised, "FINAL", CycleStatus.Finalised), Cycle(otherCycle, "OTHER", CycleStatus.Active));
-        foreach (Guid id in new[] { cycle, closing }) db.CycleParticipants.Add(new CycleParticipant { CycleId = id, ParticipantId = active, Status = CycleParticipantStatus.Active, JoinedAt = now });
-        db.CycleParticipants.AddRange(new CycleParticipant { CycleId = cycle, ParticipantId = withdrawn, Status = CycleParticipantStatus.Withdrawn, JoinedAt = now }, new CycleParticipant { CycleId = cycle, ParticipantId = inactive, Status = CycleParticipantStatus.Inactive, JoinedAt = now });
+        foreach ((Guid cycleId, Guid participantId) in new[] { (cycle, active), (closing, active), (cycle, withdrawn), (cycle, inactive) })
+        {
+            db.CycleParticipants.Add(new CycleParticipant { CycleId = cycleId, ParticipantId = participantId, Status = CycleParticipantStatus.Active, JoinedAt = now });
+            db.CycleParticipantEvents.Add(new CycleParticipantEvent { Id = Guid.NewGuid(), CycleId = cycleId, ParticipantId = participantId, SequenceNumber = 1, EventType = CycleParticipantEventType.Enrolled, FromStatus = null, ToStatus = CycleParticipantStatus.Active, Reason = "Synthetic test enrollment", ActorId = manager, OccurredAt = now });
+        }
         db.AwardCategories.AddRange(new AwardCategory { Id = globalCategory, Code = "GLOBAL", Name = "Global", IsActive = true }, new AwardCategory { Id = cycleCategory, CycleId = cycle, Code = "CYCLE", Name = "Cycle", IsActive = true }, new AwardCategory { Id = inactiveCategory, CycleId = cycle, Code = "INACTIVE", Name = "Inactive", IsActive = false }, new AwardCategory { Id = otherCategory, CycleId = otherCycle, Code = "OTHER", Name = "Other", IsActive = true });
+        await db.SaveChangesAsync();
+        foreach ((Guid participantId, CycleParticipantStatus status) in new[] { (withdrawn, CycleParticipantStatus.Withdrawn), (inactive, CycleParticipantStatus.Inactive) })
+        {
+            CycleParticipant membership = (await db.CycleParticipants.FindAsync(cycle, participantId))!; membership.Status = status; membership.LeftAt = now;
+            db.CycleParticipantEvents.Add(new CycleParticipantEvent { Id = Guid.NewGuid(), CycleId = cycle, ParticipantId = participantId, SequenceNumber = 2, EventType = CycleParticipantEventType.StatusChanged, FromStatus = CycleParticipantStatus.Active, ToStatus = status, Reason = "Synthetic status fixture", ActorId = manager, OccurredAt = now });
+        }
         await db.SaveChangesAsync();
     }
 

@@ -54,6 +54,7 @@ public sealed class ManualAwardService(QuestDbContext db, IQuestCurrentUser curr
             return View(existing, existingCategory);
         }
 
+        await AcquireLock($"quest-cycle-admin:{command.CycleId:N}", transaction, ct); await AcquireLock($"quest-cycle-participant:{command.CycleId:N}:{command.ParticipantId:N}", transaction, ct);
         await AvailableCycle(command.CycleId, ct);
         CycleParticipant? roster = await db.CycleParticipants.AsNoTracking().SingleOrDefaultAsync(x => x.CycleId == command.CycleId && x.ParticipantId == command.ParticipantId, ct);
         if (roster is null) throw NotFound("ManualAwardParticipantNotFound", "The participant is not enrolled in the selected cycle.");
@@ -73,10 +74,13 @@ public sealed class ManualAwardService(QuestDbContext db, IQuestCurrentUser curr
     }
 
     private async Task AcquireRequestLock(Guid requestId, IDbContextTransaction transaction, CancellationToken ct)
+        => await AcquireLock($"quest-manual-award:{requestId:N}", transaction, ct);
+
+    private async Task AcquireLock(string resourceName, IDbContextTransaction transaction, CancellationToken ct)
     {
         await using var command = db.Database.GetDbConnection().CreateCommand(); command.Transaction = transaction.GetDbTransaction();
         command.CommandText = "DECLARE @result int; EXEC @result = sys.sp_getapplock @Resource = @Resource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = -1, @DbPrincipal = 'public'; SELECT @result;";
-        var resource = command.CreateParameter(); resource.ParameterName = "@Resource"; resource.Value = $"quest-manual-award:{requestId:N}"; command.Parameters.Add(resource);
+        var resource = command.CreateParameter(); resource.ParameterName = "@Resource"; resource.Value = resourceName; command.Parameters.Add(resource);
         int result = Convert.ToInt32(await command.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
         if (result < 0) throw new WorkflowException(503, "ManualAwardDependencyUnavailable", "The manual-award idempotency lock could not be acquired.");
     }

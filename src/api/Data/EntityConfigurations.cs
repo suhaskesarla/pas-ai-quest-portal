@@ -29,10 +29,11 @@ public sealed class CycleConfiguration : IEntityTypeConfiguration<Cycle>
 {
     public void Configure(EntityTypeBuilder<Cycle> b)
     {
-        b.ToTable("Cycles", t => { t.HasCheckConstraint("CK_Cycles_DateRange", "[StartsAt] <= [EndsAt]"); t.HasCheckConstraint("CK_Cycles_Status", "[Status] IN ('Active','Closing','Finalised')"); });
+        b.ToTable("Cycles", t => { t.HasCheckConstraint("CK_Cycles_DateRange", "[StartsAt] < [EndsAt]"); t.HasCheckConstraint("CK_Cycles_Status", "[Status] IN ('Active','Closing','Finalised')"); });
         b.HasKey(x => x.Id);
         b.Property(x => x.Code).HasMaxLength(50); b.HasIndex(x => x.Code).IsUnique();
         b.Property(x => x.Name).HasMaxLength(200); b.Property(x => x.Status).AsString();
+        b.Property(x => x.RowVersion).IsRowVersion();
         b.HasOne<Participant>().WithMany().HasForeignKey(x => x.CreatedByParticipantId).Restrict();
     }
 }
@@ -43,9 +44,29 @@ public sealed class CycleParticipantConfiguration : IEntityTypeConfiguration<Cyc
     {
         b.ToTable("CycleParticipants", t => { t.HasCheckConstraint("CK_CycleParticipants_Dates", "[LeftAt] IS NULL OR [JoinedAt] IS NULL OR [LeftAt] >= [JoinedAt]"); t.HasCheckConstraint("CK_CycleParticipants_Status", "[Status] IN ('Active','Withdrawn','Inactive')"); });
         b.HasKey(x => new { x.CycleId, x.ParticipantId }); b.Property(x => x.Status).AsString();
+        b.Property(x => x.RowVersion).IsRowVersion();
         b.HasOne<Cycle>().WithMany().HasForeignKey(x => x.CycleId).Restrict();
         b.HasOne<Participant>().WithMany().HasForeignKey(x => x.ParticipantId).Restrict();
         b.HasIndex(x => new { x.CycleId, x.Status }); b.HasIndex(x => new { x.ParticipantId, x.CycleId });
+    }
+}
+
+public sealed class CycleParticipantEventConfiguration : IEntityTypeConfiguration<CycleParticipantEvent>
+{
+    public void Configure(EntityTypeBuilder<CycleParticipantEvent> b)
+    {
+        b.ToTable("CycleParticipantEvents", t =>
+        {
+            t.HasCheckConstraint("CK_CycleParticipantEvents_Sequence", "[SequenceNumber] > 0");
+            t.HasCheckConstraint("CK_CycleParticipantEvents_EventType", "[EventType] IN ('Enrolled','StatusChanged')");
+            t.HasCheckConstraint("CK_CycleParticipantEvents_StatusValues", "([FromStatus] IS NULL OR [FromStatus] IN ('Active','Withdrawn','Inactive')) AND [ToStatus] IN ('Active','Withdrawn','Inactive')");
+            t.HasCheckConstraint("CK_CycleParticipantEvents_Shape", "([EventType] = 'Enrolled' AND [FromStatus] IS NULL AND [ToStatus] = 'Active') OR ([EventType] = 'StatusChanged' AND [FromStatus] IS NOT NULL AND [FromStatus] <> [ToStatus])");
+            t.HasCheckConstraint("CK_CycleParticipantEvents_Reason", "LEN(LTRIM(RTRIM([Reason]))) > 0 AND DATALENGTH([Reason]) = DATALENGTH(LTRIM(RTRIM([Reason])))");
+        });
+        b.HasKey(x => x.Id); b.HasAlternateKey(x => new { x.CycleId, x.ParticipantId, x.SequenceNumber });
+        b.Property(x => x.EventType).AsString(); b.Property(x => x.FromStatus).HasConversion<string>().HasMaxLength(40); b.Property(x => x.ToStatus).AsString(); b.Property(x => x.Reason).HasMaxLength(1000);
+        b.HasOne<CycleParticipant>().WithMany().HasForeignKey(x => new { x.CycleId, x.ParticipantId }).Restrict(); b.HasOne<Participant>().WithMany().HasForeignKey(x => x.ActorId).Restrict();
+        b.HasIndex(x => new { x.CycleId, x.ParticipantId, x.OccurredAt, x.Id });
     }
 }
 

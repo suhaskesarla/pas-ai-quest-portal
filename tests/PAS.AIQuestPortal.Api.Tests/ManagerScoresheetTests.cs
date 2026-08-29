@@ -126,10 +126,11 @@ public sealed class ManagerScoresheetTests : IAsyncLifetime
             new Cycle { Id = cycle, Code = "AUG-2026", Name = "August", Status = CycleStatus.Active, StartsAt = now.AddDays(-20), EndsAt = now.AddDays(10), CreatedAt = now, CreatedByParticipantId = manager },
             new Cycle { Id = emptyCycle, Code = "JUL-2026", Name = "July", Status = CycleStatus.Closing, StartsAt = now.AddMonths(-1), EndsAt = now, CreatedAt = now, CreatedByParticipantId = manager },
             new Cycle { Id = Guid.Parse("82000000-0000-4000-8000-000000000003"), Code = "JUN-2026", Name = "June", Status = CycleStatus.Finalised, StartsAt = now.AddMonths(-2), EndsAt = now.AddMonths(-1), CreatedAt = now, CreatedByParticipantId = manager });
-        db.CycleParticipants.AddRange(
-            new CycleParticipant { CycleId = cycle, ParticipantId = active, Status = CycleParticipantStatus.Active, JoinedAt = now },
-            new CycleParticipant { CycleId = cycle, ParticipantId = withdrawn, Status = CycleParticipantStatus.Withdrawn, JoinedAt = now },
-            new CycleParticipant { CycleId = cycle, ParticipantId = inactive, Status = CycleParticipantStatus.Inactive, JoinedAt = now });
+        foreach (Guid participantId in new[] { active, withdrawn, inactive })
+        {
+            db.CycleParticipants.Add(new CycleParticipant { CycleId = cycle, ParticipantId = participantId, Status = CycleParticipantStatus.Active, JoinedAt = now });
+            db.CycleParticipantEvents.Add(new CycleParticipantEvent { Id = Guid.NewGuid(), CycleId = cycle, ParticipantId = participantId, SequenceNumber = 1, EventType = CycleParticipantEventType.Enrolled, FromStatus = null, ToStatus = CycleParticipantStatus.Active, Reason = "Synthetic scoresheet enrollment", ActorId = manager, OccurredAt = now });
+        }
         db.Challenges.Add(new Challenge { Id = challenge, CycleId = cycle, Name = "Scoresheet Challenge", Description = "Synthetic", Category = "Synthetic", Status = ChallengeStatus.Open, OpenAt = now.AddDays(-1), DueAt = now.AddDays(1), CloseAt = now.AddDays(2), CreatedAt = now, CreatedByParticipantId = manager });
         db.ChallengeTasks.Add(new ChallengeTask { Id = task, ChallengeId = challenge, Name = "Scoresheet Task", XP = 100, EvidenceRequirement = EvidenceRequirement.Text, ScoringMode = ScoringMode.Individual, SortOrder = 1 });
         db.Submissions.Add(new Submission { Id = submission, CycleId = cycle, ClaimantId = active, ChallengeId = challenge, TaskId = task, Status = SubmissionStatus.Approved, SubmittedAt = now, LastUpdatedAt = now });
@@ -144,6 +145,13 @@ public sealed class ManagerScoresheetTests : IAsyncLifetime
             Entry(Guid.Parse("84000000-0000-4000-8000-000000000003"), 10, XPEntryType.Correction, XPSourceType.TaskApproval, outside.AddMinutes(2), grant),
             Entry(Guid.Parse("84000000-0000-4000-8000-000000000004"), 5, XPEntryType.Grant, XPSourceType.ManualAward, outside.AddMinutes(3)),
             Entry(Guid.Parse("84000000-0000-4000-8000-000000000005"), 5, XPEntryType.Grant, XPSourceType.Raid, outside.AddMinutes(4)));
+        await db.SaveChangesAsync();
+        foreach ((Guid participantId, CycleParticipantStatus status) in new[] { (withdrawn, CycleParticipantStatus.Withdrawn), (inactive, CycleParticipantStatus.Inactive) })
+        {
+            CycleParticipant membership = (await db.CycleParticipants.FindAsync(cycle, participantId))!;
+            membership.Status = status; membership.LeftAt = now;
+            db.CycleParticipantEvents.Add(new CycleParticipantEvent { Id = Guid.NewGuid(), CycleId = cycle, ParticipantId = participantId, SequenceNumber = 2, EventType = CycleParticipantEventType.StatusChanged, FromStatus = CycleParticipantStatus.Active, ToStatus = status, Reason = "Synthetic scoresheet status", ActorId = manager, OccurredAt = now });
+        }
         await db.SaveChangesAsync();
     }
 

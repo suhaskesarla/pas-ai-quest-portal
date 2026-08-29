@@ -23,9 +23,17 @@ export default class EvidenceReporter implements Reporter {
     const healthPath = path.join(runRoot, 'docker-health.txt')
     const health = fs.existsSync(healthPath) ? fs.readFileSync(healthPath, 'utf8').trim() : 'not applicable'
     const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+    const porcelain = execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' })
+    const dirty = porcelain.trim().length > 0
+    const diffStat = dirty ? execFileSync('git', ['diff', '--stat', '--', '.'], { encoding: 'utf8' }).trim() : ''
+    const diffStatHash = dirty ? execFileSync('git', ['hash-object', '--stdin'], { input: diffStat, encoding: 'utf8' }).trim() : 'clean'
     const summary = [
       `timestamp=${this.startedAt.toISOString()}`,
       `git_commit=${sha}`,
+      `git_head=${sha}`,
+      `working_tree_dirty=${dirty}`,
+      `working_tree_diff_stat_hash=${diffStatHash}`,
+      `working_tree_diff_stat=${JSON.stringify(diffStat)}`,
       `test_mode=${process.env.QA_TEST_MODE ?? 'unknown'}`,
       `base_url=${process.env.QA_BASE_URL ?? 'unknown'}`,
       `tests_passed=${this.passed}`,

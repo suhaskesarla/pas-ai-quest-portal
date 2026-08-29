@@ -59,11 +59,10 @@ public sealed class DevelopmentDemoDataSeeder(
             CycleParticipant? membership = await database.CycleParticipants.FindAsync([CycleId, member.Id], cancellationToken);
             if (membership is null)
             {
-                membership = new CycleParticipant { CycleId = CycleId, ParticipantId = member.Id, JoinedAt = now };
+                membership = new CycleParticipant { CycleId = CycleId, ParticipantId = member.Id, Status = CycleParticipantStatus.Active, JoinedAt = now, LeftAt = null };
                 database.CycleParticipants.Add(membership);
+                database.CycleParticipantEvents.Add(new CycleParticipantEvent { Id = EnrollmentEventId(member.Id), CycleId = CycleId, ParticipantId = member.Id, SequenceNumber = 1, EventType = CycleParticipantEventType.Enrolled, FromStatus = null, ToStatus = CycleParticipantStatus.Active, Reason = "Synthetic development demo enrollment", ActorId = manager.Id, OccurredAt = now });
             }
-            membership.Status = CycleParticipantStatus.Active;
-            membership.LeftAt = null;
         }
 
         Challenge? challenge = await database.Challenges.FindAsync([ChallengeId], cancellationToken);
@@ -184,5 +183,11 @@ public sealed class DevelopmentDemoDataSeeder(
         return matches.Length == 1
             ? matches[0]
             : throw new InvalidOperationException($"Development demo showcase requires exactly one enabled '{role}' profile; found {matches.Length}.");
+    }
+
+    private static Guid EnrollmentEventId(Guid participantId)
+    {
+        byte[] input = System.Text.Encoding.UTF8.GetBytes($"pas-ai-quest:demo-enrollment:{CycleId:N}:{participantId:N}");
+        byte[] hash = System.Security.Cryptography.SHA256.HashData(input); return new Guid(hash.AsSpan(0, 16));
     }
 }

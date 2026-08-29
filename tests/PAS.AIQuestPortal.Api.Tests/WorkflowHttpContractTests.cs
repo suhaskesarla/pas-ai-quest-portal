@@ -22,6 +22,7 @@ using PAS.AIQuestPortal.Api.Reporting;
 using PAS.AIQuestPortal.Api.Workflow;
 using PAS.AIQuestPortal.Api.ChallengeAdministration;
 using PAS.AIQuestPortal.Api.ManualAwards;
+using PAS.AIQuestPortal.Api.CycleAdministration;
 using Xunit;
 
 namespace PAS.AIQuestPortal.Api.Tests;
@@ -61,6 +62,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         builder.Services.AddManagerScoresheet();
         builder.Services.AddChallengeAdministration();
         builder.Services.AddManualAwards();
+        builder.Services.AddCycleAdministration();
         builder.Services.Configure<StorageOptions>(x => { });
         builder.Services.AddSingleton<IEvidenceMalwareScanner, DeterministicPassThroughEvidenceMalwareScanner>();
         builder.Services.AddSingleton<IEvidenceBlobStore>(blobs);
@@ -68,7 +70,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         builder.Services.AddSingleton<ISubmissionPreCommitHook>(commitHook); builder.Services.AddSingleton<ISubmissionPostCommitHook>(commitHook);
         builder.Services.AddSingleton<ILogger<SubmissionWorkflowService>>(securityLogger);
         builder.Services.RemoveAll<TimeProvider>(); builder.Services.AddSingleton<TimeProvider>(clock);
-        app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapSubmissionWorkflow(); app.MapManagerScoresheet(); app.MapChallengeAdministration(); app.MapManualAwards();
+        app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapSubmissionWorkflow(); app.MapManagerScoresheet(); app.MapChallengeAdministration(); app.MapManualAwards(); app.MapCycleAdministration();
         await app.StartAsync(); client = app.GetTestClient();
         await using AsyncServiceScope scope = app.Services.CreateAsyncScope(); QuestDbContext db = scope.ServiceProvider.GetRequiredService<QuestDbContext>();
         await db.Database.EnsureCreatedAsync(); await Seed(db);
@@ -211,6 +213,19 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Cycle_administration_http_contract_serializes_versions_actions_and_policy()
+    {
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/manager/cycles")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Send(HttpMethod.Get, "/api/manager/cycles", claimant, QuestRoles.Participant)).StatusCode);
+        JsonElement created = await OkJson(await SendJson(HttpMethod.Post, "/api/manager/cycles", manager, QuestRoles.Manager, new { code = "HTTP-CYCLE", name = "HTTP Cycle", startsAt = clock.UtcNow, endsAt = clock.UtcNow.AddMonths(1) }));
+        Assert.Equal("Active", created.GetProperty("status").GetString()); Assert.NotEmpty(Convert.FromBase64String(created.GetProperty("version").GetString()!)); Assert.True(created.GetProperty("allowedActions").GetProperty("canEdit").GetBoolean());
+        Guid id = created.GetProperty("id").GetGuid();
+        JsonElement enrolled = await OkJson(await SendJson(HttpMethod.Post, $"/api/manager/cycles/{id}/participants", manager, QuestRoles.Manager, new { participantId = claimant, reason = "Enroll" }));
+        Assert.Equal("Active", enrolled.GetProperty("status").GetString()); Assert.NotEmpty(Convert.FromBase64String(enrolled.GetProperty("version").GetString()!));
+        await AssertProblem(await SendJson(HttpMethod.Post, $"/api/manager/cycles/{id}/participants/{claimant}/status", manager, QuestRoles.Manager, new { version = enrolled.GetProperty("version").GetString(), status = "Active", reason = "No-op" }), HttpStatusCode.Conflict, "CycleParticipantTransitionNotAllowed");
+    }
+
+    [Fact]
     public async Task Manager_challenge_wire_contract_serializes_base64_version_and_enforces_manager_policy()
     {
         Assert.Equal(HttpStatusCode.Forbidden, (await Send(HttpMethod.Get, "/api/manager/challenge-options", claimant, QuestRoles.Participant)).StatusCode);
@@ -242,6 +257,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, (await Send(HttpMethod.Get, contentPath, claimant, QuestRoles.Participant)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await Send(HttpMethod.Get, contentPath, manager, QuestRoles.Manager)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await Send(HttpMethod.Get, contentPath, beneficiary, QuestRoles.Participant)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await Send(HttpMethod.Get, contentPath, Guid.NewGuid(), QuestRoles.Participant)).StatusCode);
 
         clock.UtcNow = clock.UtcNow.AddMinutes(1);
         JsonElement needs = await OkJson(await SendJson(HttpMethod.Post, $"/api/submissions/{created.GetProperty("id").GetGuid()}/review", manager, QuestRoles.Manager, new { version = created.GetProperty("version").GetString(), action = "NeedsEvidence", comment = "More proof" }));
@@ -371,7 +387,11 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         DateTimeOffset now = new(2026, 8, 1, 0, 0, 0, TimeSpan.Zero);
         db.Participants.AddRange(new Participant { Id = claimant, DisplayName = "Contract Claimant", CreatedAt = now }, new Participant { Id = beneficiary, DisplayName = "Contract Beneficiary", CreatedAt = now }, new Participant { Id = manager, DisplayName = "Contract Manager", CreatedAt = now });
         db.Cycles.Add(new Cycle { Id = cycle, Code = "HTTP-26", Name = "Contract Cycle", Status = CycleStatus.Active, StartsAt = now, EndsAt = now.AddMonths(1), CreatedAt = now, CreatedByParticipantId = manager });
-        db.CycleParticipants.AddRange(new CycleParticipant { CycleId = cycle, ParticipantId = claimant, Status = CycleParticipantStatus.Active }, new CycleParticipant { CycleId = cycle, ParticipantId = beneficiary, Status = CycleParticipantStatus.Active }, new CycleParticipant { CycleId = cycle, ParticipantId = manager, Status = CycleParticipantStatus.Active });
+        foreach (Guid participantId in new[] { claimant, beneficiary, manager })
+        {
+            db.CycleParticipants.Add(new CycleParticipant { CycleId = cycle, ParticipantId = participantId, Status = CycleParticipantStatus.Active, JoinedAt = now });
+            db.CycleParticipantEvents.Add(new CycleParticipantEvent { Id = Guid.NewGuid(), CycleId = cycle, ParticipantId = participantId, SequenceNumber = 1, EventType = CycleParticipantEventType.Enrolled, FromStatus = null, ToStatus = CycleParticipantStatus.Active, Reason = "Synthetic HTTP fixture enrollment", ActorId = manager, OccurredAt = now });
+        }
         db.Challenges.Add(new Challenge { Id = challenge, CycleId = cycle, Name = "Contract Challenge", Description = "HTTP contract", Category = "Build", Status = ChallengeStatus.Open, OpenAt = now, DueAt = now.AddDays(20), CloseAt = now.AddDays(25), CreatedAt = now, CreatedByParticipantId = manager });
         db.ChallengeTasks.AddRange(new ChallengeTask { Id = task, ChallengeId = challenge, Name = "Contract Task", XP = 25, EvidenceRequirement = EvidenceRequirement.Text, ScoringMode = ScoringMode.WholeTeam, SortOrder = 1 }, new ChallengeTask { Id = attachmentTask, ChallengeId = challenge, Name = "Attachment Task", XP = 25, EvidenceRequirement = EvidenceRequirement.Attachment, ScoringMode = ScoringMode.WholeTeam, SortOrder = 2 });
         db.ChallengeTeamPolicies.Add(new ChallengeTeamPolicy { ChallengeId = challenge, FormationMode = FormationMode.Either, MinMembers = 2, MaxMembers = 4 });
