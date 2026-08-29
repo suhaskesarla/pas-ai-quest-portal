@@ -16,12 +16,14 @@ test('manager awards append-only Manual XP and participant reporting refreshes',
 
   const cyclesResponse = await page.request.get('/api/manager/reporting-cycles')
   expect(cyclesResponse.status()).toBe(200)
-  const cycles = await cyclesResponse.json() as { defaultCycleId: string }
+  const cycles = await cyclesResponse.json() as { defaultCycleId: string | null }
+  expect(cycles.defaultCycleId, 'DETERMINISTIC_DEMO_SEED_REQUIRED: manager must have a reporting cycle').not.toBeNull()
+  const cycleId = cycles.defaultCycleId!
   const cycleSelector = page.getByLabel('Scoresheet reporting cycle')
-  await expect(cycleSelector).toHaveValue(cycles.defaultCycleId)
+  await expect(cycleSelector).toHaveValue(cycleId)
 
   const summary = async () => {
-    const response = await page.request.get(`/api/manager/scoresheet?cycleId=${cycles.defaultCycleId}`)
+    const response = await page.request.get(`/api/manager/scoresheet?cycleId=${cycleId}`)
     expect(response.status()).toBe(200)
     return await response.json() as { rows: SummaryRow[] }
   }
@@ -34,7 +36,7 @@ test('manager awards append-only Manual XP and participant reporting refreshes',
 
   await page.getByRole('button', { name: 'Award XP' }).click()
   const dialog = page.getByRole('dialog', { name: 'Award XP' })
-  const optionsResponse = await page.request.get(`/api/manager/manual-awards/options?cycleId=${cycles.defaultCycleId}`)
+  const optionsResponse = await page.request.get(`/api/manager/manual-awards/options?cycleId=${cycleId}`)
   expect(optionsResponse.status()).toBe(200)
   const options = await optionsResponse.json() as {
     cycle: { name: string; code: string }
@@ -72,18 +74,25 @@ test('manager awards append-only Manual XP and participant reporting refreshes',
   await captureEvidence(page, 'docker-manual-award', '02-award-confirmation.png')
 
   let command: { requestId: string; cycleId: string; participantId: string; awardCategoryId: string; amount: number; reason: string } | undefined
+  let releasePost!: () => void
+  const postGate = new Promise<void>(resolve => { releasePost = resolve })
+  let signalIntercepted!: () => void
+  const intercepted = new Promise<void>(resolve => { signalIntercepted = resolve })
   await page.route('**/api/manager/manual-awards', async route => {
     if (route.request().method() === 'POST') {
       command = route.request().postDataJSON()
-      await new Promise(resolve => setTimeout(resolve, 600))
+      signalIntercepted()
+      await postGate
     }
     await route.continue()
   })
   const createResponse = page.waitForResponse(response => response.url().endsWith('/api/manager/manual-awards') && response.request().method() === 'POST')
   await dialog.getByRole('button', { name: 'Confirm award' }).click()
+  await intercepted
   await expect(dialog.getByRole('button', { name: 'Awarding XP…' })).toBeDisabled()
   await expect(participantRow.getByRole('cell').nth(3)).toHaveText(String(targetBefore.bySource.manualAwardXp))
   await expect(participantRow.getByRole('cell').nth(6)).toHaveText(String(targetBefore.totalXp))
+  releasePost()
   expect((await createResponse).status()).toBe(200)
   await page.unroute('**/api/manager/manual-awards')
   await expect(page.getByText(/Manual XP award for Synthetic Participant recorded/)).toBeVisible()
@@ -112,7 +121,7 @@ test('manager awards append-only Manual XP and participant reporting refreshes',
   const conflict = await page.request.post('/api/manager/manual-awards', { data: { ...command!, amount: 11 } })
   expect(conflict.status()).toBe(409)
   expect((await conflict.json()).code).toBe('ManualAwardRequestConflict')
-  const detailResponse = await page.request.get(`/api/manager/scoresheet/${targetBefore.participantId}?cycleId=${cycles.defaultCycleId}&limit=25`)
+  const detailResponse = await page.request.get(`/api/manager/scoresheet/${targetBefore.participantId}?cycleId=${cycleId}&limit=25`)
   const detail = await detailResponse.json() as { items: { id: string; sourceType: string }[] }
   expect(detail.items.filter(item => item.id === command!.requestId && item.sourceType === 'ManualAward')).toHaveLength(1)
   expect((await summary()).rows.find(row => row.participantId === targetBefore.participantId)!.totalXp).toBe(targetAfter.totalXp)

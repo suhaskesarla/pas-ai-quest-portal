@@ -9,7 +9,15 @@
     "test:docker-manager-challenges": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-manager-challenges.config.ts",
     "test:docker-manager-scoresheet": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-manager-scoresheet.config.ts",
     "test:docker-manual-award": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-manual-award.config.ts",
-    "test:docker-manager-navigation": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-manager-navigation.config.ts"
+    "test:docker-manager-navigation": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-manager-navigation.config.ts",
+    "test:docker-cycle-admin": "playwright test --config docker-cycle-admin.config.ts",
+    "e2e:regression": "playwright test --config playwright.regression.config.ts",
+    "e2e:security": "playwright test --config playwright.regression.config.ts security",
+    "e2e:reporting": "playwright test --config playwright.regression.config.ts reporting",
+    "e2e:cycle-admin": "playwright test --config playwright.regression.config.ts cycle-admin",
+    "e2e:concurrency": "playwright test --config playwright.regression.config.ts concurrency",
+    "e2e:persistence": "playwright test --config playwright.regression.config.ts persistence",
+    "e2e:full-demo": "playwright test --config playwright.regression.config.ts regression/full-quest-demo.spec.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1"

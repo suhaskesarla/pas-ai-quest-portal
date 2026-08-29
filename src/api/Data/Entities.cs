@@ -15,6 +15,7 @@ public enum XPSourceType { TaskApproval, ManualAward, Raid }
 public enum PassType { Physical, Remote }
 public enum DeadlineEventType { OverrideSet, OverrideChanged, OverrideCleared }
 public enum CycleEventType { Created, StatusChanged, Reopened, CorrectionAuthorised, CorrectionRecorded }
+public enum CycleParticipantEventType { Enrolled, StatusChanged }
 
 public sealed class Participant
 {
@@ -36,6 +37,7 @@ public sealed class Cycle
     public string? ThemeConfiguration { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public Guid CreatedByParticipantId { get; set; }
+    public byte[] RowVersion { get; set; } = [];
 }
 
 public sealed class CycleParticipant
@@ -45,6 +47,21 @@ public sealed class CycleParticipant
     public CycleParticipantStatus Status { get; set; }
     public DateTimeOffset? JoinedAt { get; set; }
     public DateTimeOffset? LeftAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
+public sealed class CycleParticipantEvent : IAppendOnly
+{
+    public Guid Id { get; set; }
+    public Guid CycleId { get; set; }
+    public Guid ParticipantId { get; set; }
+    public int SequenceNumber { get; set; }
+    public CycleParticipantEventType EventType { get; set; }
+    public CycleParticipantStatus? FromStatus { get; set; }
+    public CycleParticipantStatus ToStatus { get; set; }
+    public required string Reason { get; set; }
+    public Guid ActorId { get; set; }
+    public DateTimeOffset OccurredAt { get; set; }
 }
 
 public sealed class CycleEvent : IAppendOnly

@@ -1,0 +1,13 @@
+export type CycleStatus = 'Active' | 'Closing' | 'Finalised'
+export type ParticipantStatus = 'Active' | 'Withdrawn' | 'Inactive'
+export type ParticipantCounts = { active: number; withdrawn: number; inactive: number; total: number }
+export type CycleSummary = { id: string; version: string; code: string; name: string; status: CycleStatus; startsAt: string; endsAt: string; participantCounts: ParticipantCounts }
+export type CycleAllowedActions = { canEdit: boolean; canStartClosing: boolean; canFinalise: boolean; canAddParticipant: boolean }
+export type ParticipantAllowedActions = { canSetActive: boolean; canSetWithdrawn: boolean; canSetInactive: boolean }
+export type CycleParticipant = { participantId: string; displayName: string; status: ParticipantStatus; joinedAt: string | null; leftAt: string | null; version: string; allowedActions: ParticipantAllowedActions }
+export type CycleDetail = Omit<CycleSummary, 'participantCounts'> & { themeConfiguration: string | null; createdAt: string; createdByParticipantId: string; allowedActions: CycleAllowedActions; participants: CycleParticipant[] }
+export type CycleList = { cycles: CycleSummary[] }
+export type ParticipantOption = { participantId: string; displayName: string }
+export type ParticipantOptions = { participants: ParticipantOption[] }
+export type CreateCycleRequest = { code: string; name: string; startsAt: string; endsAt: string }
+export type UpdateCycleRequest = CreateCycleRequest & { version: string }

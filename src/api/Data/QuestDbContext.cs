@@ -10,6 +10,7 @@ public sealed class QuestDbContext(DbContextOptions<QuestDbContext> options) : D
     public DbSet<Cycle> Cycles => Set<Cycle>();
     public DbSet<CycleParticipant> CycleParticipants => Set<CycleParticipant>();
     public DbSet<CycleEvent> CycleEvents => Set<CycleEvent>();
+    public DbSet<CycleParticipantEvent> CycleParticipantEvents => Set<CycleParticipantEvent>();
     public DbSet<CycleTeam> CycleTeams => Set<CycleTeam>();
     public DbSet<CycleTeamMember> CycleTeamMembers => Set<CycleTeamMember>();
     public DbSet<Challenge> Challenges => Set<Challenge>();
@@ -66,6 +67,25 @@ public sealed class QuestDbContext(DbContextOptions<QuestDbContext> options) : D
                 $"{invalidEntry.Metadata.ClrType.Name} is append-only and cannot be updated or deleted.");
         }
 
+        if (ChangeTracker.Entries<CycleParticipant>().Any(x => x.State == EntityState.Deleted))
+            throw new InvalidOperationException("CycleParticipant enrollment is durable and cannot be deleted.");
+
+        foreach (EntityEntry<CycleParticipant> enrollment in ChangeTracker.Entries<CycleParticipant>().Where(x => x.State == EntityState.Added))
+        {
+            bool validRow = enrollment.Entity.Status == CycleParticipantStatus.Active
+                && enrollment.Entity.JoinedAt is not null
+                && enrollment.Entity.LeftAt is null;
+            int matchingEnrollmentEvents = ChangeTracker.Entries<CycleParticipantEvent>().Count(x => x.State == EntityState.Added
+                && x.Entity.CycleId == enrollment.Entity.CycleId
+                && x.Entity.ParticipantId == enrollment.Entity.ParticipantId
+                && x.Entity.EventType == CycleParticipantEventType.Enrolled
+                && x.Entity.FromStatus is null
+                && x.Entity.ToStatus == CycleParticipantStatus.Active
+                && x.Entity.OccurredAt == enrollment.Entity.JoinedAt);
+            if (!validRow || matchingEnrollmentEvents != 1)
+                throw new InvalidOperationException("A new CycleParticipant requires matching Active enrollment state and an Enrolled event in the same unit of work.");
+        }
+
         foreach (EntityEntry<Cycle> cycleEntry in ChangeTracker.Entries<Cycle>().Where(x => x.State == EntityState.Modified && x.Property(y => y.Status).IsModified))
         {
             CycleStatus previous = cycleEntry.Property(x => x.Status).OriginalValue;
@@ -79,6 +99,29 @@ public sealed class QuestDbContext(DbContextOptions<QuestDbContext> options) : D
             {
                 throw new InvalidOperationException("A Cycle status change requires a matching append-only CycleEvent in the same unit of work.");
             }
+        }
+
+        foreach (EntityEntry<CycleParticipant> enrollment in ChangeTracker.Entries<CycleParticipant>().Where(x => x.State == EntityState.Modified && (x.Property(y => y.Status).IsModified || x.Property(y => y.JoinedAt).IsModified || x.Property(y => y.LeftAt).IsModified)))
+        {
+            CycleParticipantStatus previous = enrollment.Property(x => x.Status).OriginalValue, current = enrollment.Property(x => x.Status).CurrentValue;
+            DateTimeOffset? originalJoinedAt = enrollment.Property(x => x.JoinedAt).OriginalValue;
+            DateTimeOffset? currentJoinedAt = enrollment.Property(x => x.JoinedAt).CurrentValue;
+            DateTimeOffset? currentLeftAt = enrollment.Property(x => x.LeftAt).CurrentValue;
+            CycleParticipantEvent? statusEvent = previous == current ? null : ChangeTracker.Entries<CycleParticipantEvent>()
+                .Where(x => x.State == EntityState.Added
+                    && x.Entity.CycleId == enrollment.Entity.CycleId
+                    && x.Entity.ParticipantId == enrollment.Entity.ParticipantId
+                    && x.Entity.EventType == CycleParticipantEventType.StatusChanged
+                    && x.Entity.FromStatus == previous
+                    && x.Entity.ToStatus == current)
+                .Select(x => x.Entity)
+                .SingleOrDefault();
+            bool validTimestamps = originalJoinedAt == currentJoinedAt
+                && (current == CycleParticipantStatus.Active
+                    ? currentLeftAt is null
+                    : currentLeftAt is not null && statusEvent is not null && currentLeftAt == statusEvent.OccurredAt);
+            if (statusEvent is null || !validTimestamps)
+                throw new InvalidOperationException("A CycleParticipant state change requires a matching StatusChanged event and approved timestamp semantics in the same unit of work.");
         }
 
         foreach (EntityEntry<Challenge> challengeEntry in ChangeTracker.Entries<Challenge>().Where(x => x.State == EntityState.Modified && x.Property(y => y.DueAt).IsModified && x.Property(y => y.Status).OriginalValue != ChallengeStatus.Draft))

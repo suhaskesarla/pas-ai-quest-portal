@@ -27,10 +27,12 @@ test('manager Scoresheet reconciles workflow XP and exposes append-only particip
 
   const cyclesResponse = await page.request.get('/api/manager/reporting-cycles')
   expect(cyclesResponse.status()).toBe(200)
-  const cycles = await cyclesResponse.json() as { defaultCycleId: string }
+  const cycles = await cyclesResponse.json() as { defaultCycleId: string | null }
+  expect(cycles.defaultCycleId, 'DETERMINISTIC_DEMO_SEED_REQUIRED: manager must have a reporting cycle').not.toBeNull()
+  const cycleId = cycles.defaultCycleId!
   type SummaryRow = { participantId: string; displayName: string; participantStatus: string; totalXp: number; bySource: { taskApprovalXp: number; manualAwardXp: number; raidXp: number }; byEntryType: { netAdjustmentXp: number } }
   const getSummary = async () => {
-    const response = await page.request.get(`/api/manager/scoresheet?cycleId=${cycles.defaultCycleId}`)
+    const response = await page.request.get(`/api/manager/scoresheet?cycleId=${cycleId}`)
     expect(response.status()).toBe(200)
     return await response.json() as { rows: SummaryRow[] }
   }
@@ -38,7 +40,7 @@ test('manager Scoresheet reconciles workflow XP and exposes append-only particip
 
   await page.getByRole('button', { name: 'Scoresheet' }).click()
   const cycleSelector = page.getByLabel('Scoresheet reporting cycle')
-  await expect(cycleSelector).toHaveValue(cycles.defaultCycleId)
+  await expect(cycleSelector).toHaveValue(cycleId)
   await expect(page.getByText('Cycle selection changes this Scoresheet reporting context.')).toBeVisible()
   const table = page.getByRole('table')
   await expect(table).toBeVisible()

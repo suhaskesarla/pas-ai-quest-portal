@@ -192,13 +192,11 @@ public sealed class DatabaseInvariantTests : IAsyncLifetime
         db.Cycles.AddRange(
             new Cycle { Id = d.July, Code = "2026-07", Name = "July", Status = CycleStatus.Active, StartsAt = now.AddMonths(-1), EndsAt = now, CreatedAt = now, CreatedByParticipantId = d.Manager },
             new Cycle { Id = d.August, Code = "2026-08", Name = "August", Status = CycleStatus.Active, StartsAt = now, EndsAt = now.AddMonths(1), CreatedAt = now, CreatedByParticipantId = d.Manager });
-        db.CycleParticipants.AddRange(
-            new CycleParticipant { CycleId = d.July, ParticipantId = d.Manager, Status = CycleParticipantStatus.Active },
-            new CycleParticipant { CycleId = d.July, ParticipantId = d.Beneficiary, Status = CycleParticipantStatus.Active },
-            new CycleParticipant { CycleId = d.July, ParticipantId = d.OtherParticipant, Status = CycleParticipantStatus.Active },
-            new CycleParticipant { CycleId = d.August, ParticipantId = d.Manager, Status = CycleParticipantStatus.Active },
-            new CycleParticipant { CycleId = d.August, ParticipantId = d.Beneficiary, Status = CycleParticipantStatus.Active },
-            new CycleParticipant { CycleId = d.August, ParticipantId = d.OtherParticipant, Status = CycleParticipantStatus.Active });
+        foreach ((Guid cycleId, Guid participantId) in new[] { (d.July, d.Manager), (d.July, d.Beneficiary), (d.July, d.OtherParticipant), (d.August, d.Manager), (d.August, d.Beneficiary), (d.August, d.OtherParticipant) })
+        {
+            db.CycleParticipants.Add(new CycleParticipant { CycleId = cycleId, ParticipantId = participantId, Status = CycleParticipantStatus.Active, JoinedAt = now });
+            db.CycleParticipantEvents.Add(new CycleParticipantEvent { Id = Guid.NewGuid(), CycleId = cycleId, ParticipantId = participantId, SequenceNumber = 1, EventType = CycleParticipantEventType.Enrolled, FromStatus = null, ToStatus = CycleParticipantStatus.Active, Reason = "Synthetic invariant fixture enrollment", ActorId = d.Manager, OccurredAt = now });
+        }
         db.Challenges.AddRange(
             new Challenge { Id = d.ChallengeA, CycleId = d.July, Name = "A", Description = "A", Category = "Learning", Status = ChallengeStatus.Open, OpenAt = now.AddDays(-5), DueAt = now.AddDays(5), CloseAt = now.AddDays(10), CreatedAt = now, CreatedByParticipantId = d.Manager },
             new Challenge { Id = d.ChallengeB, CycleId = d.July, Name = "B", Description = "B", Category = "Learning", Status = ChallengeStatus.Open, OpenAt = now.AddDays(-5), DueAt = now.AddDays(5), CloseAt = now.AddDays(10), CreatedAt = now, CreatedByParticipantId = d.Manager });

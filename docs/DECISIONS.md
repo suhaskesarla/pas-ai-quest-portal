@@ -38,6 +38,83 @@ Decision required:
 
 ## Resolved
 
+### 2026-08-28 — BA-015 CycleParticipant audit amendment (supersedes part of the initial Cycle Administration decision)
+
+Required by: Senior Architect review
+
+This amendment supersedes the earlier BA-015 statement that Cycle Administration would not add participant-membership history. Enrollment and manager-controlled status changes directly affect submission and Manual Award eligibility and therefore require narrowly scoped append-only audit history.
+
+#### `CycleParticipantEvent`
+
+`CycleParticipantEvent` records CycleParticipant enrollment and manager-controlled status administration only. It is not a general audit framework.
+
+- **Enrolled:** `FromStatus = null`, `ToStatus = Active`; record the manager actor, mandatory reason and server timestamp.
+- **StatusChanged:** `FromStatus = previous status`, `ToStatus = new status`; record the manager actor, mandatory reason and server timestamp.
+- Every reason is trimmed, non-empty and at most 1,000 characters.
+- Events are append-only and preserve the full enrollment/status history.
+
+#### Current-row timestamp semantics
+
+- New enrollment: `JoinedAt = server timestamp`, `LeftAt = null`.
+- Active to Withdrawn or Inactive: preserve `JoinedAt`; set `LeftAt = server timestamp`.
+- Withdrawn or Inactive to Active: preserve `JoinedAt`; set `LeftAt = null`.
+- Withdrawn to Inactive or Inactive to Withdrawn: preserve `JoinedAt`; set `LeftAt = latest transition server timestamp`.
+- `LeftAt` represents current-row operational state only; `CycleParticipantEvent` is the authoritative full history.
+
+All other BA-015 rules remain unchanged: enrollment and status changes occur only while the cycle is Active; enrollment begins Active; reactivation is supported; CycleParticipant rows are never deleted; and Closing or Finalised cycles freeze enrollment and status.
+
+---
+
+### 2026-08-28 — Initial Cycle Administration workflow (resolves BA-015; clarifies spec §§2, 3 and 17)
+
+Decided by: User
+
+#### Creation, lifecycle and active-cycle rules
+
+- Do not introduce Draft. A new cycle is created directly with `CycleStatus = Active`, including a future-dated cycle.
+- Status is controlled by manager action; dates never automatically transition lifecycle state.
+- The only supported lifecycle is one-way: `Active → Closing → Finalised`.
+- No reopen or backward transition is exposed. Existing technical `CycleEventType.Reopened` support is not an approved initial operational action.
+- Multiple Active cycles are permitted. Do not introduce global Active-status uniqueness; deterministic selector defaults remain presentation behavior only.
+
+#### Fields and dates
+
+- Creation requires code, name, `StartsAt` and `EndsAt`, with `StartsAt < EndsAt`.
+- While Active, code, name and dates may be edited subject to validation.
+- Closing and Finalised cycle metadata is read-only.
+- Transitioning status never changes dates automatically.
+
+#### Enrollment and participant status
+
+- Cycle Administration enrolls existing durable `Participant` records only. It does not create identities, accounts or Entra users.
+- New `CycleParticipant` enrollment is permitted only while the cycle is Active and begins with status Active.
+- Managers may explicitly move an existing enrollment between Active, Withdrawn and Inactive while the cycle is Active, including reactivation from Withdrawn or Inactive.
+- Once the cycle is Closing or Finalised, enrollment membership and participant status are read-only.
+- Never physically delete a `CycleParticipant`; deletion must not depend on whether related activity exists.
+- BA-005 and BA-014 remain unchanged: Active participants may submit or be beneficiaries and receive new ManualAward Grants; Withdrawn and Inactive participants remain historically visible but cannot perform those new actions.
+
+#### Finalisation and challenge independence
+
+- Finalised closes cycle configuration and membership, while reporting, Scoresheet and historical participant visibility remain available.
+- New ManualAward Grants remain prohibited in Finalised cycles.
+- Approved post-approval TaskApproval correction remains allowed as an explicit exception and does not reopen the cycle.
+- Cycle transitions do not publish, close or otherwise modify challenges and do not determine challenge eligibility.
+- Challenges need not be Closed before cycle Finalisation.
+
+#### Confirmation, audit and deletion
+
+- Require explicit confirmation for `Active → Closing`, `Closing → Finalised`, and every `CycleParticipant` status change.
+- Lifecycle transitions require a mandatory manager reason and use the existing append-only Cycle lifecycle event mechanism.
+- Cycle creation uses existing Cycle creation audit behavior where supported.
+- **Superseded by the Senior Architect-required BA-015 audit amendment above:** enrollment and participant-status changes require the narrowly scoped append-only `CycleParticipantEvent` history.
+- Hard deletion of Cycle and CycleParticipant is unsupported.
+
+#### Explicit deferrals
+
+- Draft status; cycle reopening; clock-driven lifecycle transitions; hard delete/restore; participant or account creation; Entra provisioning; bulk CSV enrollment; recurring cycle creation; cloning; team scoring, team XP and Team Leaderboard; score disputes; Raid Administration; Teams integration; and Azure administration.
+
+---
+
 ### 2026-08-27 — Manual XP Award workflow (resolves BA-014; clarifies spec §§3 and 4)
 
 Decided by: User

@@ -8,6 +8,7 @@ import type { CurrentUser } from './auth/types'
 import type { ReportingApi } from './reporting/reportingApi'
 import type { ChallengeAdminApi } from './challenge-admin/challengeAdminApi'
 import type { ScoresheetApi } from './scoresheet/scoresheetApi'
+import type { CycleAdminApi } from './cycle-admin/cycleAdminApi'
 import { WorkflowApiError, type WorkflowApi } from './workflow/workflowApi'
 
 const participant: CurrentUser = { isAuthenticated: true, participantId: 'p-demo', displayName: 'Avery Demo', roles: ['Quest.Participant'] }
@@ -47,9 +48,10 @@ function fakeScoresheet(): ScoresheetApi {
   const cycle = { id: 'cycle-1', code: 'AUG26', name: 'August Quest', status: 'Active' as const, startsAt: '2026-08-01T00:00:00Z', endsAt: '2026-08-31T00:00:00Z' }
   return { getReportingCycles: vi.fn().mockResolvedValue({ defaultCycleId: cycle.id, cycles: [cycle] }), getScoresheet: vi.fn().mockResolvedValue({ cycle, rows: [] }), getParticipant: vi.fn(), correctXp: vi.fn(), getManualAwardOptions: vi.fn().mockResolvedValue({ cycle, participants: [], categories: [] }), createManualAward: vi.fn() } as unknown as ScoresheetApi
 }
+function fakeCycleAdmin(): CycleAdminApi { return { getCycles: vi.fn().mockResolvedValue({ cycles: [] }), getCycle: vi.fn(), getParticipantOptions: vi.fn(), createCycle: vi.fn(), updateCycle: vi.fn(), transition: vi.fn(), enroll: vi.fn(), changeStatus: vi.fn() } as unknown as CycleAdminApi }
 
-function renderApp(api: AuthApi, demoModeAvailable = true, app: { workflow?: WorkflowApi; challengeAdmin?: ChallengeAdminApi; scoresheet?: ScoresheetApi } = {}) {
-  return render(<AuthProvider api={api} demoModeAvailable={demoModeAvailable}><App api={app.workflow} challengeAdmin={app.challengeAdmin} scoresheet={app.scoresheet} reports={fakeReports()} /></AuthProvider>)
+function renderApp(api: AuthApi, demoModeAvailable = true, app: { workflow?: WorkflowApi; challengeAdmin?: ChallengeAdminApi; scoresheet?: ScoresheetApi; cycleAdmin?: CycleAdminApi } = {}) {
+  return render(<AuthProvider api={api} demoModeAvailable={demoModeAvailable}><App api={app.workflow} challengeAdmin={app.challengeAdmin} scoresheet={app.scoresheet} cycleAdmin={app.cycleAdmin ?? fakeCycleAdmin()} reports={fakeReports()} /></AuthProvider>)
 }
 
 describe('Step 5A authentication shell', () => {
@@ -130,9 +132,11 @@ describe('Step 5A authentication shell', () => {
 describe('manager navigation and dashboard', () => {
   const managerApp = (workflow = fakeWorkflow()) => renderApp(fakeApi({ getCurrentUser: vi.fn().mockResolvedValue(manager) }), false, { workflow, challengeAdmin: fakeChallengeAdmin(), scoresheet: fakeScoresheet() })
 
-  it('shows only the four approved manager destinations and keeps contextual actions out of navigation', async () => {
-    managerApp(); const nav = await screen.findByRole('navigation'); expect(within(nav).getAllByRole('button').map((button) => button.textContent)).toEqual(['Dashboard', 'Challenges', 'Review Queue', 'Scoresheet']); for (const absent of ['New Challenge', 'Leaderboard', 'Analytics', 'Cycle Administration', 'Award XP', 'Correct XP']) expect(within(nav).queryByRole('button', { name: absent })).not.toBeInTheDocument()
+  it('adds the real Cycle Administration destination while keeping contextual/deferred actions out of navigation', async () => {
+    managerApp(); const nav = await screen.findByRole('navigation'); expect(within(nav).getAllByRole('button').map((button) => button.textContent)).toEqual(['Dashboard', 'Challenges', 'Review Queue', 'Scoresheet', 'Cycle Administration']); for (const absent of ['New Challenge', 'Leaderboard', 'Analytics', 'Award XP', 'Correct XP', 'Raid Administration']) expect(within(nav).queryByRole('button', { name: absent })).not.toBeInTheDocument()
   })
+
+  it('routes managers to Cycle Administration and does not expose it to participants', async () => { managerApp(); const user = userEvent.setup(); await user.click(await screen.findByRole('button', { name: 'Cycle Administration' })); expect(await screen.findByRole('heading', { name: 'Cycle Administration', level: 2 })).toBeInTheDocument(); cleanup(); renderApp(fakeApi(), false); await screen.findByRole('heading', { name: 'Welcome, Avery Demo' }); expect(within(screen.getByRole('navigation')).queryByRole('button', { name: 'Cycle Administration' })).not.toBeInTheDocument() })
 
   it('renders three manager action cards and navigates to each existing destination', async () => {
     managerApp(); const user = userEvent.setup(); expect(await screen.findByRole('heading', { name: 'Manager Dashboard' })).toBeInTheDocument(); expect(screen.getByText('Manage challenges, review participant submissions, and maintain the authoritative XP record.')).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Manage Challenges' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Review Submissions' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Scoresheet & XP' })).toBeInTheDocument()

@@ -43,7 +43,8 @@ public sealed class WorkflowException(int status, string code, string message) :
 
 public interface ISubmissionPostCommitHook { Task AfterCommitAsync(Guid submissionId,CancellationToken ct); }
 public interface ISubmissionPreCommitHook { Task BeforeCommitAsync(Guid submissionId,CancellationToken ct); }
-public sealed class SubmissionWorkflowService(QuestDbContext db, IQuestCurrentUser user, TimeProvider clock, EvidenceAttachmentValidator? attachmentValidator = null, IEvidenceBlobStore? blobStore = null, ILogger<SubmissionWorkflowService>? logger = null, ISubmissionPostCommitHook? postCommitHook = null, ISubmissionPreCommitHook? preCommitHook = null)
+public interface ISubmissionBeforeWriteTransactionHook { Task BeforeTransactionAsync(CancellationToken ct); }
+public sealed class SubmissionWorkflowService(QuestDbContext db, IQuestCurrentUser user, TimeProvider clock, EvidenceAttachmentValidator? attachmentValidator = null, IEvidenceBlobStore? blobStore = null, ILogger<SubmissionWorkflowService>? logger = null, ISubmissionPostCommitHook? postCommitHook = null, ISubmissionPreCommitHook? preCommitHook = null, ISubmissionBeforeWriteTransactionHook? beforeWriteTransactionHook = null)
 {
     public async Task<IReadOnlyList<EligibleChallengeView>> EligibleAsync(CancellationToken ct)
     {
@@ -91,7 +92,10 @@ public sealed class SubmissionWorkflowService(QuestDbContext db, IQuestCurrentUs
         string[] blobKeys = BlobKeys(submission.Id, attachments); await Upload(attachments, blobKeys, ct);
         try
         {
+            if (beforeWriteTransactionHook is not null) await beforeWriteTransactionHook.BeforeTransactionAsync(ct);
             await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            await AcquireMembershipLocks(challenge.CycleId, claimant, beneficiaries, tx, ct);
+            await ValidateActiveMembership(challenge.CycleId, claimant, beneficiaries, ct);
             db.Submissions.Add(submission);
             db.SubmissionBeneficiaries.AddRange(beneficiaries.Select(x => new SubmissionBeneficiary { SubmissionId = submission.Id, ParticipantId = x, CycleId = challenge.CycleId, AddedAt = now, AddedByParticipantId = claimant }));
             AddEvidence(submission.Id, claimant, now, request.Evidence); AddAttachments(submission.Id, claimant, now, attachments, blobKeys); AddEvent(submission.Id, "Submitted", null, SubmissionStatus.Submitted, request.Comment, claimant, now);
@@ -215,6 +219,30 @@ public sealed class SubmissionWorkflowService(QuestDbContext db, IQuestCurrentUs
         bool match = task.ScoringMode == ScoringMode.WholeTeam ? members.Order().SequenceEqual(beneficiaries.Order()) : beneficiaries.All(members.Contains);
         if (claimantMember && members.Length >= min && members.Length <= policy.MaxMembers && match) return exists.Id;
         throw Bad("InvalidParticipationBeneficiaries", "The beneficiaries do not match an allowed challenge participation.");
+    }
+
+    private async Task ValidateActiveMembership(Guid cycleId, Guid claimant, Guid[] beneficiaries, CancellationToken ct)
+    {
+        Guid[] required = beneficiaries.Append(claimant).Distinct().ToArray();
+        int active = await db.CycleParticipants.CountAsync(x => x.CycleId == cycleId && required.Contains(x.ParticipantId) && x.Status == CycleParticipantStatus.Active, ct);
+        if (active != required.Length) throw Bad("IneligibleBeneficiary", "The claimant and every beneficiary must remain active when the submission is committed.");
+    }
+
+    private async Task AcquireMembershipLocks(Guid cycleId, Guid claimant, Guid[] beneficiaries, IDbContextTransaction transaction, CancellationToken ct)
+    {
+        await AcquireTransactionLock($"quest-cycle-admin:{cycleId:N}", transaction, ct);
+        foreach (Guid participantId in beneficiaries.Append(claimant).Distinct().Order())
+            await AcquireTransactionLock($"quest-cycle-participant:{cycleId:N}:{participantId:N}", transaction, ct);
+    }
+
+    private async Task AcquireTransactionLock(string resourceName, IDbContextTransaction transaction, CancellationToken ct)
+    {
+        await using var command = db.Database.GetDbConnection().CreateCommand();
+        command.Transaction = transaction.GetDbTransaction();
+        command.CommandText = "DECLARE @result int; EXEC @result = sys.sp_getapplock @Resource = @Resource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = -1, @DbPrincipal = 'public'; SELECT @result;";
+        var resource = command.CreateParameter(); resource.ParameterName = "@Resource"; resource.Value = resourceName; command.Parameters.Add(resource);
+        int result = Convert.ToInt32(await command.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
+        if (result < 0) throw new WorkflowException(503, "SubmissionDependencyUnavailable", "Submission eligibility locking is unavailable.");
     }
 
     private async Task<IReadOnlyList<ParticipationOptionView>> ParticipationOptions(Challenge challenge, ChallengeTask task, Guid claimant, CancellationToken ct)

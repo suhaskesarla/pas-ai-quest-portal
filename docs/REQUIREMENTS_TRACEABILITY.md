@@ -107,6 +107,57 @@ The following approved design areas deliberately improve or generalise the histo
 
 These items do not imply that unresolved business rules have been decided.
 
+## Cycle Administration Decisions
+
+### Initial operational workflow — BA-015
+
+#### Cycle configuration and lifecycle
+
+- Create a cycle directly as Active with required unique code, name, `StartsAt` and `EndsAt`; require `StartsAt < EndsAt`.
+- Future-dated Active cycles are valid. Dates never automatically control status.
+- Support only `Active → Closing → Finalised`, controlled by manager action. No backward transition or reopen is available.
+- Multiple Active cycles are valid; reporting selector defaults do not imply uniqueness.
+- Code, name and dates are editable while Active and read-only in Closing or Finalised. Transitions do not alter dates.
+
+#### Enrollment
+
+- Enroll existing durable Participants only, and only while the cycle is Active. New enrollment begins Active.
+- While the cycle is Active, managers may change an enrollment between Active, Withdrawn and Inactive, including reactivation.
+- Closing and Finalised freeze enrollment membership and status.
+- Never physically delete a CycleParticipant.
+- BA-005 and BA-014 eligibility remains unchanged: only Active enrollment permits new submissions/beneficiary selection and ManualAward Grants; all statuses remain visible historically.
+
+#### Finalisation and independent challenges
+
+Finalised makes cycle metadata, membership and participant statuses read-only while preserving reporting, Scoresheet and historical visibility. New ManualAward Grants remain prohibited. Approved TaskApproval correction remains available without reopening the cycle.
+
+Cycle lifecycle never publishes, closes or modifies challenges, never determines challenge eligibility, and does not require all challenges to be Closed before Finalisation.
+
+#### Confirmation and audit
+
+Require explicit confirmation for both lifecycle transitions and every participant-status change. Lifecycle transitions require a manager reason and use the existing Cycle event mechanism. Cycle creation uses existing creation audit behavior where supported.
+
+The earlier BA-015 statement that no participant-membership history would be added is **superseded following Senior Architect review**. Enrollment and manager-controlled status changes directly affect submission and Manual Award eligibility and require narrowly scoped append-only `CycleParticipantEvent` history. This is not a general audit framework.
+
+`CycleParticipantEvent` semantics:
+
+- **Enrolled:** `FromStatus = null`, `ToStatus = Active`, with manager actor, reason and server timestamp.
+- **StatusChanged:** previous and new statuses in `FromStatus` and `ToStatus`, with manager actor, reason and server timestamp.
+- Reason is mandatory, trimmed and no longer than 1,000 characters.
+- Events are append-only and preserve full enrollment/status history.
+
+Current `CycleParticipant` timestamp semantics:
+
+- Enrollment sets `JoinedAt` to the server timestamp and `LeftAt` to null.
+- Active to Withdrawn/Inactive preserves `JoinedAt` and sets `LeftAt` to the server timestamp.
+- Withdrawn/Inactive to Active preserves `JoinedAt` and clears `LeftAt`.
+- Withdrawn and Inactive transitions preserve `JoinedAt` and set `LeftAt` to the latest transition server timestamp.
+- `LeftAt` is current-row operational state; `CycleParticipantEvent` is the full history.
+
+All other BA-015 enrollment restrictions remain unchanged.
+
+Hard deletion of Cycle and CycleParticipant is unavailable. Draft, reopen, automatic transitions, identity/provisioning features, bulk/recurring/cloning operations, team scoring, disputes, Raid Administration, Teams integration and Azure administration remain out of scope.
+
 ## Manual XP Award Decisions
 
 ### Initial workflow — BA-014
@@ -330,6 +381,7 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | BA-012 | Which roster, ledger breakdown, drill-down, ranking, filtering and export rules govern Manager Scoresheet? Decision recorded. | `DECIDED` | Nothing |
 | BA-013 | Which XP sources are directly correctable in the initial Post-Approval Correction workflow? Decision: original TaskApproval Grants only. | `DECIDED` | Nothing; ManualAward and Raid correction semantics are deferred |
 | BA-014 | What eligibility, category, amount and idempotency rules govern the initial Manual XP Award workflow? Decision recorded. | `DECIDED` | Nothing |
+| BA-015 | What lifecycle, date, enrollment, finalisation and audit rules govern initial Cycle Administration? Decision recorded and audit model amended after Senior Architect review. | `DECIDED` | Nothing; implementation requires the approved `CycleParticipantEvent` schema addition |
 
 ## Implementation Gates
 
@@ -345,6 +397,7 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | Manager review ownership | **BA-009 RESOLVED — SAFE TO IMPLEMENT** |
 | Beneficiary-specific XP correction | **BA-013 RESOLVED — SAFE TO IMPLEMENT FOR ORIGINAL TASKAPPROVAL GRANTS** |
 | Manual XP Award | **BA-014 RESOLVED — SAFE TO IMPLEMENT** |
+| Cycle Administration | **BA-015 RESOLVED — SAFE TO IMPLEMENT WITH THE REQUIRED CYCLEPARTICIPANTEVENT AUDIT MODEL** |
 | Step 7 evidence/attachment capability | **BUSINESS READY** |
 | `Custom` evidence validation | **DEFERRED — NOT IN INITIAL STEP 7 SHOWCASE** |
 | Production malware-scanner integration | **DEFERRED TO PRODUCTION READINESS; PRODUCTION ATTACHMENTS MUST REMAIN DISABLED WITHOUT IT** |
