@@ -15,6 +15,7 @@ using PAS.AIQuestPortal.Api.Reporting;
 using PAS.AIQuestPortal.Api.ChallengeAdministration;
 using PAS.AIQuestPortal.Api.ManualAwards;
 using PAS.AIQuestPortal.Api.CycleAdministration;
+using PAS.AIQuestPortal.Api.RaidAdministration;
 
 if (args.Length > 0 && string.Equals(args[0], "historical-import", StringComparison.OrdinalIgnoreCase))
 {
@@ -37,6 +38,7 @@ builder.Services.AddManagerScoresheet();
 builder.Services.AddChallengeAdministration();
 builder.Services.AddManualAwards();
 builder.Services.AddCycleAdministration();
+builder.Services.AddRaidAdministration();
 
 builder.Services.AddCors(options =>
 {
@@ -98,6 +100,7 @@ app.MapManagerScoresheet();
 app.MapChallengeAdministration();
 app.MapManualAwards();
 app.MapCycleAdministration();
+app.MapRaidAdministration();
 
 app.Run();
 return 0;

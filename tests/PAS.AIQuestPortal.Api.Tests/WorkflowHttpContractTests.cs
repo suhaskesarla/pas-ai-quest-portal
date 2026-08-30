@@ -23,6 +23,7 @@ using PAS.AIQuestPortal.Api.Workflow;
 using PAS.AIQuestPortal.Api.ChallengeAdministration;
 using PAS.AIQuestPortal.Api.ManualAwards;
 using PAS.AIQuestPortal.Api.CycleAdministration;
+using PAS.AIQuestPortal.Api.RaidAdministration;
 using Xunit;
 
 namespace PAS.AIQuestPortal.Api.Tests;
@@ -63,6 +64,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         builder.Services.AddChallengeAdministration();
         builder.Services.AddManualAwards();
         builder.Services.AddCycleAdministration();
+        builder.Services.AddRaidAdministration();
         builder.Services.Configure<StorageOptions>(x => { });
         builder.Services.AddSingleton<IEvidenceMalwareScanner, DeterministicPassThroughEvidenceMalwareScanner>();
         builder.Services.AddSingleton<IEvidenceBlobStore>(blobs);
@@ -70,7 +72,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         builder.Services.AddSingleton<ISubmissionPreCommitHook>(commitHook); builder.Services.AddSingleton<ISubmissionPostCommitHook>(commitHook);
         builder.Services.AddSingleton<ILogger<SubmissionWorkflowService>>(securityLogger);
         builder.Services.RemoveAll<TimeProvider>(); builder.Services.AddSingleton<TimeProvider>(clock);
-        app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapSubmissionWorkflow(); app.MapManagerScoresheet(); app.MapChallengeAdministration(); app.MapManualAwards(); app.MapCycleAdministration();
+        app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapSubmissionWorkflow(); app.MapManagerScoresheet(); app.MapChallengeAdministration(); app.MapManualAwards(); app.MapCycleAdministration(); app.MapRaidAdministration();
         await app.StartAsync(); client = app.GetTestClient();
         await using AsyncServiceScope scope = app.Services.CreateAsyncScope(); QuestDbContext db = scope.ServiceProvider.GetRequiredService<QuestDbContext>();
         await db.Database.EnsureCreatedAsync(); await Seed(db);
@@ -223,6 +225,15 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
         JsonElement enrolled = await OkJson(await SendJson(HttpMethod.Post, $"/api/manager/cycles/{id}/participants", manager, QuestRoles.Manager, new { participantId = claimant, reason = "Enroll" }));
         Assert.Equal("Active", enrolled.GetProperty("status").GetString()); Assert.NotEmpty(Convert.FromBase64String(enrolled.GetProperty("version").GetString()!));
         await AssertProblem(await SendJson(HttpMethod.Post, $"/api/manager/cycles/{id}/participants/{claimant}/status", manager, QuestRoles.Manager, new { version = enrolled.GetProperty("version").GetString(), status = "Active", reason = "No-op" }), HttpStatusCode.Conflict, "CycleParticipantTransitionNotAllowed");
+    }
+
+    [Fact]
+    public async Task Raid_administration_http_contract_enforces_manager_policy_and_serializes_rowversion()
+    {
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/manager/raids/cycles")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Send(HttpMethod.Get, "/api/manager/raids/cycles", claimant, QuestRoles.Participant)).StatusCode);
+        JsonElement created = await OkJson(await SendJson(HttpMethod.Post, "/api/manager/raids", manager, QuestRoles.Manager, new { cycleId = cycle, name = "HTTP Raid", occurredAt = clock.UtcNow }));
+        Assert.Equal("HTTP Raid", created.GetProperty("name").GetString()); Assert.NotEmpty(Convert.FromBase64String(created.GetProperty("rowVersion").GetString()!)); Assert.True(created.GetProperty("allowedActions").GetProperty("canEdit").GetBoolean());
     }
 
     [Fact]

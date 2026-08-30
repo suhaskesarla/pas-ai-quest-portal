@@ -243,7 +243,7 @@ public sealed class RaidSessionConfiguration : IEntityTypeConfiguration<RaidSess
 {
     public void Configure(EntityTypeBuilder<RaidSession> b)
     {
-        b.ToTable("RaidSessions"); b.HasKey(x => x.Id); b.HasAlternateKey(x => new { x.Id, x.CycleId }); b.Property(x => x.Name).HasMaxLength(200); b.HasOne<Cycle>().WithMany().HasForeignKey(x => x.CycleId).Restrict();
+        b.ToTable("RaidSessions"); b.HasKey(x => x.Id); b.HasAlternateKey(x => new { x.Id, x.CycleId }); b.Property(x => x.Name).HasMaxLength(200); b.Property(x => x.RowVersion).IsRowVersion(); b.HasOne<Cycle>().WithMany().HasForeignKey(x => x.CycleId).Restrict();
     }
 }
 
@@ -251,7 +251,7 @@ public sealed class RaidEntitlementConfiguration : IEntityTypeConfiguration<Raid
 {
     public void Configure(EntityTypeBuilder<RaidEntitlement> b)
     {
-        b.ToTable("RaidEntitlements", t => { t.HasCheckConstraint("CK_RaidEntitlements_AssignedCount", "[AssignedCount] >= 0"); t.HasCheckConstraint("CK_RaidEntitlements_PassType", "[PassType] IN ('Physical','Remote')"); }); b.HasKey(x => new { x.ParticipantId, x.CycleId, x.PassType }); b.Property(x => x.PassType).AsString();
+        b.ToTable("RaidEntitlements", t => { t.HasCheckConstraint("CK_RaidEntitlements_AssignedCount", "[AssignedCount] >= 0"); t.HasCheckConstraint("CK_RaidEntitlements_PassType", "[PassType] IN ('Physical','Remote')"); }); b.HasKey(x => new { x.ParticipantId, x.CycleId, x.PassType }); b.Property(x => x.PassType).AsString(); b.Property(x => x.RowVersion).IsRowVersion();
         b.HasOne<CycleParticipant>().WithMany().HasForeignKey(x => new { x.CycleId, x.ParticipantId }).Restrict();
     }
 }
@@ -261,7 +261,7 @@ public sealed class RaidParticipationConfiguration : IEntityTypeConfiguration<Ra
     public void Configure(EntityTypeBuilder<RaidParticipation> b)
     {
         b.ToTable("RaidParticipations", t => t.HasCheckConstraint("CK_RaidParticipations_PassType", "[PassType] IN ('Physical','Remote')")); b.HasKey(x => x.Id); b.Property(x => x.PassType).AsString();
-        b.HasOne<RaidSession>().WithMany().HasForeignKey(x => new { x.RaidSessionId, x.CycleId }).HasPrincipalKey(x => new { x.Id, x.CycleId }).Restrict(); b.HasOne<CycleParticipant>().WithMany().HasForeignKey(x => new { x.CycleId, x.ParticipantId }).Restrict(); b.HasIndex(x => new { x.ParticipantId, x.RaidSessionId, x.PassType }).IsUnique();
+        b.HasOne<RaidSession>().WithMany().HasForeignKey(x => new { x.RaidSessionId, x.CycleId }).HasPrincipalKey(x => new { x.Id, x.CycleId }).Restrict(); b.HasOne<CycleParticipant>().WithMany().HasForeignKey(x => new { x.CycleId, x.ParticipantId }).Restrict(); b.HasIndex(x => new { x.ParticipantId, x.RaidSessionId }).IsUnique(); b.HasIndex(x => new { x.ParticipantId, x.CycleId, x.PassType });
     }
 }
 

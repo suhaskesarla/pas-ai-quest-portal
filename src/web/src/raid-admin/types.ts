@@ -1,0 +1,14 @@
+export type RaidCycleStatus = 'Active' | 'Closing' | 'Finalised'
+export type RaidPassType = 'Physical' | 'Remote'
+export type RaidCycle = { id: string; code: string; name: string; status: RaidCycleStatus; startsAt: string; endsAt: string }
+export type RaidCycleList = { defaultCycleId: string | null; cycles: RaidCycle[] }
+export type RaidAllowedActions = { canEdit: boolean; canManagePasses: boolean; canRecordParticipation: boolean; canAwardXp: boolean }
+export type RaidSession = { id: string; cycleId: string; cycleName: string; cycleStatus: RaidCycleStatus; name: string; occurredAt: string; rowVersion: string; hasReferences: boolean; allowedActions: RaidAllowedActions }
+export type RaidSessionList = { cycle: RaidCycle; raids: RaidSession[] }
+export type RaidPassBalance = { assigned: number; used: number; remaining: number; entitlementRowVersion: string | null }
+export type RaidParticipation = { participationId: string; participantId: string; cycleId: string; raidSessionId: string; passType: RaidPassType; usedAt: string }
+export type RaidParticipant = { participantId: string; displayName: string; cycleParticipantStatus: 'Active' | 'Withdrawn' | 'Inactive'; physical: RaidPassBalance; remote: RaidPassBalance; participation: RaidParticipation | null; allowedActions: { canManagePasses: boolean; canRecordParticipation: boolean; canAwardXp: boolean } }
+export type RaidParticipantList = { raid: RaidSession; participants: RaidParticipant[] }
+export type CreateRaidSessionRequest = { cycleId: string; name: string; occurredAt: string }
+export type UpdateRaidSessionRequest = { rowVersion: string; name: string; occurredAt: string }
+export type RaidXpRequest = { requestId: string; participantId: string; amount: number; reason: string }
