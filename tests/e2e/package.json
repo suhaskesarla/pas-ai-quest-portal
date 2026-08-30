@@ -12,6 +12,7 @@
     "test:docker-manager-navigation": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-manager-navigation.config.ts",
     "test:docker-cycle-admin": "playwright test --config docker-cycle-admin.config.ts",
     "test:docker-raid-admin": "playwright test --config docker-raid-admin.config.ts",
+    "test:docker-full-demo": "powershell -NoProfile -ExecutionPolicy Bypass -File ./run-docker-showcase.ps1 -PlaywrightConfig docker-full-demo.config.ts",
     "e2e:regression": "playwright test --config playwright.regression.config.ts",
     "e2e:security": "playwright test --config playwright.regression.config.ts security",
     "e2e:reporting": "playwright test --config playwright.regression.config.ts reporting",
