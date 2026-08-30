@@ -258,6 +258,7 @@ public sealed class RaidSession
     public Guid CycleId { get; set; }
     public required string Name { get; set; }
     public DateTimeOffset OccurredAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
 }
 
 public sealed class RaidEntitlement
@@ -266,9 +267,10 @@ public sealed class RaidEntitlement
     public Guid CycleId { get; set; }
     public PassType PassType { get; set; }
     public int AssignedCount { get; set; }
+    public byte[] RowVersion { get; set; } = [];
 }
 
-public sealed class RaidParticipation
+public sealed class RaidParticipation : IAppendOnly
 {
     public Guid Id { get; set; }
     public Guid ParticipantId { get; set; }

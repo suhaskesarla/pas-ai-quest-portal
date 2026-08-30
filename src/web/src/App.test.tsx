@@ -9,6 +9,7 @@ import type { ReportingApi } from './reporting/reportingApi'
 import type { ChallengeAdminApi } from './challenge-admin/challengeAdminApi'
 import type { ScoresheetApi } from './scoresheet/scoresheetApi'
 import type { CycleAdminApi } from './cycle-admin/cycleAdminApi'
+import type { RaidAdminApi } from './raid-admin/raidAdminApi'
 import { WorkflowApiError, type WorkflowApi } from './workflow/workflowApi'
 
 const participant: CurrentUser = { isAuthenticated: true, participantId: 'p-demo', displayName: 'Avery Demo', roles: ['Quest.Participant'] }
@@ -49,9 +50,10 @@ function fakeScoresheet(): ScoresheetApi {
   return { getReportingCycles: vi.fn().mockResolvedValue({ defaultCycleId: cycle.id, cycles: [cycle] }), getScoresheet: vi.fn().mockResolvedValue({ cycle, rows: [] }), getParticipant: vi.fn(), correctXp: vi.fn(), getManualAwardOptions: vi.fn().mockResolvedValue({ cycle, participants: [], categories: [] }), createManualAward: vi.fn() } as unknown as ScoresheetApi
 }
 function fakeCycleAdmin(): CycleAdminApi { return { getCycles: vi.fn().mockResolvedValue({ cycles: [] }), getCycle: vi.fn(), getParticipantOptions: vi.fn(), createCycle: vi.fn(), updateCycle: vi.fn(), transition: vi.fn(), enroll: vi.fn(), changeStatus: vi.fn() } as unknown as CycleAdminApi }
+function fakeRaidAdmin(): RaidAdminApi { return { getCycles: vi.fn().mockResolvedValue({ defaultCycleId: null, cycles: [] }), getSessions: vi.fn(), getSession: vi.fn(), getParticipants: vi.fn(), createSession: vi.fn(), updateSession: vi.fn(), updateEntitlement: vi.fn(), recordParticipation: vi.fn(), awardXp: vi.fn() } as unknown as RaidAdminApi }
 
-function renderApp(api: AuthApi, demoModeAvailable = true, app: { workflow?: WorkflowApi; challengeAdmin?: ChallengeAdminApi; scoresheet?: ScoresheetApi; cycleAdmin?: CycleAdminApi } = {}) {
-  return render(<AuthProvider api={api} demoModeAvailable={demoModeAvailable}><App api={app.workflow} challengeAdmin={app.challengeAdmin} scoresheet={app.scoresheet} cycleAdmin={app.cycleAdmin ?? fakeCycleAdmin()} reports={fakeReports()} /></AuthProvider>)
+function renderApp(api: AuthApi, demoModeAvailable = true, app: { workflow?: WorkflowApi; challengeAdmin?: ChallengeAdminApi; scoresheet?: ScoresheetApi; cycleAdmin?: CycleAdminApi; raidAdmin?: RaidAdminApi } = {}) {
+  return render(<AuthProvider api={api} demoModeAvailable={demoModeAvailable}><App api={app.workflow} challengeAdmin={app.challengeAdmin} scoresheet={app.scoresheet} cycleAdmin={app.cycleAdmin ?? fakeCycleAdmin()} raidAdmin={app.raidAdmin ?? fakeRaidAdmin()} reports={fakeReports()} /></AuthProvider>)
 }
 
 describe('Step 5A authentication shell', () => {
@@ -133,10 +135,12 @@ describe('manager navigation and dashboard', () => {
   const managerApp = (workflow = fakeWorkflow()) => renderApp(fakeApi({ getCurrentUser: vi.fn().mockResolvedValue(manager) }), false, { workflow, challengeAdmin: fakeChallengeAdmin(), scoresheet: fakeScoresheet() })
 
   it('adds the real Cycle Administration destination while keeping contextual/deferred actions out of navigation', async () => {
-    managerApp(); const nav = await screen.findByRole('navigation'); expect(within(nav).getAllByRole('button').map((button) => button.textContent)).toEqual(['Dashboard', 'Challenges', 'Review Queue', 'Scoresheet', 'Cycle Administration']); for (const absent of ['New Challenge', 'Leaderboard', 'Analytics', 'Award XP', 'Correct XP', 'Raid Administration']) expect(within(nav).queryByRole('button', { name: absent })).not.toBeInTheDocument()
+    managerApp(); const nav = await screen.findByRole('navigation'); expect(within(nav).getAllByRole('button').map((button) => button.textContent)).toEqual(['Dashboard', 'Challenges', 'Review Queue', 'Scoresheet', 'Cycle Administration', 'Raid Administration']); for (const absent of ['New Challenge', 'Leaderboard', 'Analytics', 'Award XP', 'Correct XP']) expect(within(nav).queryByRole('button', { name: absent })).not.toBeInTheDocument()
   })
 
   it('routes managers to Cycle Administration and does not expose it to participants', async () => { managerApp(); const user = userEvent.setup(); await user.click(await screen.findByRole('button', { name: 'Cycle Administration' })); expect(await screen.findByRole('heading', { name: 'Cycle Administration', level: 2 })).toBeInTheDocument(); cleanup(); renderApp(fakeApi(), false); await screen.findByRole('heading', { name: 'Welcome, Avery Demo' }); expect(within(screen.getByRole('navigation')).queryByRole('button', { name: 'Cycle Administration' })).not.toBeInTheDocument() })
+
+  it('routes managers to Raid Administration and hides it from participants', async () => { managerApp(); const user = userEvent.setup(); await user.click(await screen.findByRole('button', { name: 'Raid Administration' })); expect(await screen.findByRole('heading', { name: 'Raid Administration', level: 2 })).toBeInTheDocument(); cleanup(); renderApp(fakeApi(), false); await screen.findByRole('heading', { name: 'Welcome, Avery Demo' }); expect(within(screen.getByRole('navigation')).queryByRole('button', { name: 'Raid Administration' })).not.toBeInTheDocument() })
 
   it('renders three manager action cards and navigates to each existing destination', async () => {
     managerApp(); const user = userEvent.setup(); expect(await screen.findByRole('heading', { name: 'Manager Dashboard' })).toBeInTheDocument(); expect(screen.getByText('Manage challenges, review participant submissions, and maintain the authoritative XP record.')).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Manage Challenges' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Review Submissions' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Scoresheet & XP' })).toBeInTheDocument()

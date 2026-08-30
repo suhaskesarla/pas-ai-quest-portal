@@ -107,6 +107,89 @@ The following approved design areas deliberately improve or generalise the histo
 
 These items do not imply that unresolved business rules have been decided.
 
+## Raid Administration Decisions
+
+### Teams Notification MVP — BA-017
+
+The Product Owner approved a deliberately small outbound notification scope. This supersedes the historical Teams-integration deferral only for BA-017; Teams remains a non-authoritative awareness, call-to-action and deep-link surface. Portal authorization and persisted portal state remain authoritative.
+
+Current workflow verification confirms seven Monday events: `ChallengePublished`; initial Submitted; Resubmitted after NeedsEvidence; Needs Evidence; Approved with resulting beneficiary XP; terminal Rejected; and explicit manager-triggered Leaderboard Announcement. `ChallengePublished` means the first successful manager publish command that commits persisted `Draft → Open`; it is a semantic business/notification event, not a persisted `Published` status. Rejected is supported by the current submission status, review action and review endpoint. The leaderboard query exists, but the explicit post command does not yet exist and is part of the future implementation scope.
+
+#### Traceability rules
+
+- Notifications become eligible only after their authoritative state/event transaction commits. Approval notification requires the approval and all beneficiary XP grants to commit together. Teams failures never roll back portal work.
+- General posts target a configured Quest communication destination; manager alerts target a configured manager destination. Neither audience is dynamically inferred from portal enrollment or roles.
+- Private delivery resolves a durable Participant through intended `(tenantId, oid)` identity, never display name or email. Current synthetic demo identity and optional `EntraObjectId` do not provide real private Teams recipients; real delivery requires explicit mapping/configuration.
+- Submission/resubmission manager messages show claimant plus beneficiary count, not beneficiary names, and never expose evidence, attachment names or blob URLs.
+- Needs Evidence may include the manager comment only because the current comment is participant-visible, and must use the portal/API's authoritative effective deadline calculation including overrides.
+- Approval sends one combined Approved + XP message per distinct beneficiary showing only that beneficiary's XP. Claimant/beneficiary overlap never duplicates the notification.
+- Rejected is private to the claimant, shows participant-visible reason and no-XP status, and is not confused with NeedsEvidence.
+- Leaderboard posting is manager-triggered only. The server reads a command-time selected-cycle snapshot and posts the first three authoritative ordered rows with existing competition ranks and totals. Synthetic demo disclosure is allowed; real-user public names/XP remain disabled pending explicit privacy approval.
+- One domain event yields at most one notification per intended destination/recipient. Retries without a new event do not repost; resubmission is a new event; every explicit leaderboard-post command is intentional and may post again.
+- Actionable events are suppressed when superseded: Challenge Published after Closed/Archived; Submitted after leaving Submitted; Resubmitted after leaving Resubmitted; Needs Evidence after leaving NeedsEvidence. Approved, Rejected and timestamped leaderboard snapshots remain useful and send even if delayed.
+
+#### Monday acceptance matrix
+
+| Event | Trigger | Audience | Visibility | Deep link | Duplicate rule | Supersession rule | Monday status |
+|---|---|---|---|---|---|---|---|
+| `ChallengePublished` | First committed manager Publish transition `Draft → Open` | `QUEST_GENERAL_AUDIENCE` | Public challenge summary and task XP only | Challenge Detail | Once per transition/destination | Suppress if Closed/Archived before send | `MUST_HAVE` |
+| Participant Submitted | Committed initial submission | `QUEST_MANAGER_AUDIENCE` | Claimant, challenge/task, beneficiary count, timestamp; no evidence | Manager Review/submission detail | Once per Submitted event/destination | Suppress unless still Submitted | `MUST_HAVE` |
+| Participant Resubmitted | Committed NeedsEvidence-to-Resubmitted transition | `QUEST_MANAGER_AUDIENCE` | Claimant, challenge/task, Resubmitted wording and timestamp; no evidence | Manager Review/submission detail | Once per Resubmitted event/destination; later resubmission is new | Suppress unless still Resubmitted | `MUST_HAVE` |
+| Needs Evidence | Committed NeedsEvidence review outcome | claimant `PARTICIPANT_PRIVATE` | Challenge/task, participant-visible feedback, authoritative effective deadline | My Activity submission/resubmit | Once per event/claimant | Suppress unless still NeedsEvidence | `MUST_HAVE` |
+| Approved + XP | Committed approval and atomic beneficiary XP grants | each distinct `BENEFICIARY_PRIVATE` recipient | Recipient's own challenge/task XP only | My Activity / XP Activity | Once per approval event/distinct participant | Send even if delayed | `MUST_HAVE` |
+| Rejected | Committed terminal Rejected review outcome | claimant `PARTICIPANT_PRIVATE` | Participant-visible reason and no-XP status | Submission history | Once per event/claimant | Send even if delayed | `MUST_HAVE` |
+| Leaderboard Announcement | Explicit committed manager post command using server snapshot | `QUEST_GENERAL_AUDIENCE` | Selected cycle, generated time, first 3 ordered rows with rank and XP | Selected-cycle Individual Leaderboard | Once per command/destination; repeated commands are new | Send timestamped snapshot even if delayed | `MUST_HAVE` |
+| ManualAward / Raid XP / Correction | Future committed event if promoted | affected participant privately | Recipient-specific only | XP Activity | Same event rule | To be defined with promotion | `OPTIONAL_LATER` |
+
+Configuration dependency: General Quest destination, manager destination, app/deployment identity, portal base URL, private-delivery enablement, durable Participant-to-Teams identity mapping, and real-user leaderboard visibility flag. Delivery architecture remains for Teams Architect review. No `DELIVERY_STATUS.md` exists at the time of this decision, so no delivery-status file was changed and implementation is not marked started.
+
+### Monday MVP — BA-016
+
+This decision supersedes the earlier BA-015 Raid Administration deferral only for the MVP below. It does not reopen deferred Raid correction, deletion, advanced audit, analytics or integration scope.
+
+#### Existing model trace
+
+| Concept | Current representation and evidence |
+|---|---|
+| RaidSession | `Id`, `CycleId`, `Name`, `OccurredAt`; PK `Id`, alternate key `(Id, CycleId)`, FK to Cycle, name max 200, no lifecycle. Seed and historical import populate it; XP Activity and Scoresheet resolve its name. |
+| RaidEntitlement | `(ParticipantId, CycleId, PassType)` key, `AssignedCount >= 0`, Physical/Remote only, FK to CycleParticipant. Seed/import populate it; Dashboard reads it. |
+| RaidParticipation | `Id`, participant, session, cycle, Physical/Remote `PassType`, `UsedAt`; FKs require same-cycle session and enrolled participant. Current unique index is participant/session/pass type. Seed/import populate it; Dashboard counts rows as Used. |
+| Raid XPEntry | Append-only positive Grant with `SourceType = Raid`, required same-cycle `RaidSessionId`, reason/actor/timestamp, and no category/submission/task. Seeded tests/import/reporting already support it; no manager creation endpoint exists yet. |
+
+Conceptually: RaidSession is the occurrence; RaidEntitlement is assigned cycle-level pass capacity; RaidParticipation is one consumed pass/use at the session; Raid XPEntry is an independent score movement. Passes contribute zero XP.
+
+#### Frozen MVP rules
+
+- View Raid history in every cycle status. Create/edit RaidSession only in Active/Closing cycles; Finalised is read-only. Require explicit cycle, trimmed name up to 200 characters and `OccurredAt`. Cycle is immutable; duplicate names are allowed. Edit name/time only before any participation or Raid XP exists. No session lifecycle or deletion.
+- Manage Physical/Remote entitlements only for Active CycleParticipants in Active/Closing cycles. Assigned is a non-negative integer; Used is participation count by type; Remaining is Assigned minus Used and cannot be negative. Assignment may change but never below Used.
+- Record one pass use for an Active CycleParticipant against a same-cycle RaidSession and matching entitlement with Remaining greater than zero. One use consumes one pass and receives server `UsedAt`.
+- `NEW_DECISION`: one participant may have only one participation per RaidSession total. `PassType` identifies the consumed pass. Architect review must strengthen the current database uniqueness to participant/session.
+- Raid XP is manager-only, one active participant per command, against a same-cycle RaidSession in an Active/Closing cycle. Participation/pass possession is not required. Amount is positive Int32; reason is trimmed, mandatory and at most 2,000 characters. Write one append-only `Grant / Raid` XPEntry. Finalised rejects new Raid XP.
+- Raid XP uses Manual Award-style client `requestId` idempotency. Exact replay returns the existing result; changed data with the same ID conflicts; a new ID permits an otherwise identical legitimate award.
+- No Raid XP correction, ledger mutation or deletion.
+
+#### Cycle matrix
+
+| Action | Active | Closing | Finalised |
+|---|---|---|---|
+| Read Raid history | Yes | Yes | Yes |
+| Create/edit eligible session | Yes | Yes | No |
+| Assign/update passes | Yes | Yes | No |
+| Record participation | Yes | Yes | No |
+| Award Raid XP | Yes | Yes | No |
+
+#### Reporting, UI, audit and concurrency
+
+- Existing Dashboard pass balance and XP Activity are sufficient for the participant Monday journey; no dedicated participant Raids screen is required.
+- Scoresheet and Leaderboard consume Raid XP through the ledger; passes never affect XP or rank.
+- Manager uses one compact Raid Administration screen: session list/create/detail, participant pass balances and participation action, and participant-specific Award Raid XP confirmation.
+- XPEntry provides Raid XP audit. Current session/entitlement changes have no history, and participation lacks manager actor; this MVP documents rather than expands those audit limitations.
+- Stale session/entitlement writes conflict; rowversion is recommended for Architect review. Entitlement/use writes serialize so `Used <= Assigned`; participant/session uniqueness rejects duplicate use. Request locking provides at-most-once Raid XP. Every write racing Finalisation must atomically recheck cycle status.
+
+#### Deferred after MVP
+
+Raid teams/scoring/leaderboard, approvals, self-registration, QR, venue/calendar features, Teams notifications, bulk CSV, Raid XP correction, deletion/restore, pass-use reversal, advanced audit/analytics, and a dedicated participant Raid management screen.
+
 ## Cycle Administration Decisions
 
 ### Initial operational workflow — BA-015
@@ -218,16 +301,16 @@ The initial chunk includes an itemized participant ledger showing signed amount,
 
 ### Lifecycle and availability
 
-Persist `Draft`, `Published`, `Closed` and `Archived` only. The allowed irreversible lifecycle is `Draft → Published → Closed → Archived`; Published cannot return to Draft, only Closed may be Archived, and restore is unavailable in this chunk.
+**Implementation terminology reconciliation (2026-08-30):** older BA-011 wording that described `Published` as persisted is superseded. The current manager Publish command persists `Draft → Open`; Open cannot return to Draft. `ChallengePublished` is the semantic BA-017 event produced only by a successful committed publish command, not another persisted status. `Open → Closed → Archived` remains target behavior and an implementation gap until transition endpoints exist; restore remains unavailable.
 
-Open is derived rather than persisted. The general challenge Open state requires Published status and current time from `openAt` through `closeAt` inclusive. Participant submission/resubmission eligibility additionally applies the existing deadline/override rules; an explicit BA-006 override may extend that participant's effective close boundary without changing challenge status. UI labels such as Scheduled and Open are presentation only.
+Open is persisted by the successful manager Publish command. General availability additionally requires current time from `openAt` through `closeAt` inclusive. Participant submission/resubmission eligibility also applies the existing deadline/override rules; an explicit BA-006 override may extend that participant's effective close boundary without changing challenge status. Scheduled/overdue/beyond-close labels remain derived temporal presentation.
 
 ### Editing and dates
 
 - Draft challenges permit editing of every challenge, task and configuration field.
-- Published challenges lock `openAt`, task list/identity/order, task XP, evidence requirements, scoring modes and all participation/team-policy fields.
-- Published name/title, description and supported hero image remain editable.
-- Published `dueAt` and `closeAt` may only be extended, never shortened.
+- Open (successfully published) challenges lock `openAt`, task list/identity/order, task XP, evidence requirements, scoring modes and all participation/team-policy fields.
+- Open (successfully published) challenge name/title, description and supported hero image remain editable.
+- Open (successfully published) `dueAt` and `closeAt` may only be extended, never shortened.
 - Closed and Archived challenges are read-only in this chunk.
 - Existing participant deadline overrides remain authoritative and unchanged.
 - `openAt`, `dueAt` and `closeAt` are required, with `openAt < dueAt <= closeAt`; equal due and close times are valid.
@@ -382,6 +465,8 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | BA-013 | Which XP sources are directly correctable in the initial Post-Approval Correction workflow? Decision: original TaskApproval Grants only. | `DECIDED` | Nothing; ManualAward and Raid correction semantics are deferred |
 | BA-014 | What eligibility, category, amount and idempotency rules govern the initial Manual XP Award workflow? Decision recorded. | `DECIDED` | Nothing |
 | BA-015 | What lifecycle, date, enrollment, finalisation and audit rules govern initial Cycle Administration? Decision recorded and audit model amended after Senior Architect review. | `DECIDED` | Nothing; implementation requires the approved `CycleParticipantEvent` schema addition |
+| BA-016 | What session, pass, participation, Raid XP and cycle-interaction rules govern the Monday Raid Administration MVP? Decision recorded; earlier deferral superseded for this scope. | `DECIDED` | Nothing; Architect review required for concurrency/version and participant/session uniqueness invariants |
+| BA-017 | What committed triggers, audiences, content, privacy, deduplication, failure and freshness rules govern the Teams Notification MVP? Decision recorded; prior Teams deferral superseded only for this scope. | `DECIDED` | Nothing at BA level; real private delivery depends on Entra `(tenantId, oid)` mapping/configuration and real-user leaderboard posting remains disabled pending privacy approval |
 
 ## Implementation Gates
 
@@ -398,6 +483,8 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | Beneficiary-specific XP correction | **BA-013 RESOLVED — SAFE TO IMPLEMENT FOR ORIGINAL TASKAPPROVAL GRANTS** |
 | Manual XP Award | **BA-014 RESOLVED — SAFE TO IMPLEMENT** |
 | Cycle Administration | **BA-015 RESOLVED — SAFE TO IMPLEMENT WITH THE REQUIRED CYCLEPARTICIPANTEVENT AUDIT MODEL** |
+| Raid Administration MVP | **BA-016 BUSINESS READY — SAFE FOR ARCHITECT REVIEW** |
+| Teams Notification MVP | **BA-017 BUSINESS RULES DONE; ARCHITECTURE DONE; IMPLEMENTATION NOT STARTED; TENANT/CONFIGURATION NOT READY** |
 | Step 7 evidence/attachment capability | **BUSINESS READY** |
 | `Custom` evidence validation | **DEFERRED — NOT IN INITIAL STEP 7 SHOWCASE** |
 | Production malware-scanner integration | **DEFERRED TO PRODUCTION READINESS; PRODUCTION ATTACHMENTS MUST REMAIN DISABLED WITHOUT IT** |

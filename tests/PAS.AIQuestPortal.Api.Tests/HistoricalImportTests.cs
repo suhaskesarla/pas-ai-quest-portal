@@ -228,6 +228,16 @@ public sealed class HistoricalImportTests : IAsyncLifetime
         Assert.False(second.Succeeded); Assert.Contains(second.Report.Errors, x => x.Code == "DatasetKeySubstitution"); Assert.Equal(1, await _db.HistoricalImportDatasets.CountAsync());
     }
 
+    [Fact]
+    public async Task Duplicate_participant_and_raid_session_usage_is_rejected_before_persistence_even_across_pass_types()
+    {
+        string root = Path.Combine(_outputRoot, "duplicate-raid-participation"); CopyDirectory(FixtureRoot(), root);
+        string evidence = Path.Combine(root, "raid-usage-evidence.csv");
+        await File.AppendAllTextAsync(evidence, "synthetic-avery,august-physical-raid,Remote,2026-08-13T10:00:00+10:00,synthetic-raid-evidence-duplicate\n");
+        HistoricalImportResult result = await HistoricalImportCommand.ExecuteAsync(_db, Path.Combine(root, "import-manifest.json"), Path.Combine(root, "report"));
+        Assert.False(result.Succeeded); Assert.Contains(result.Report.Errors, x => x.Code == "RaidParticipationConflict"); Assert.Empty(await _db.RaidParticipations.ToListAsync()); Assert.Empty(await _db.XPEntries.ToListAsync());
+    }
+
     private async Task<ImportCounts> GetImportCountsAsync() => new(
         Participants: await _db.Participants.CountAsync(),
         Cycles: await _db.Cycles.CountAsync(),

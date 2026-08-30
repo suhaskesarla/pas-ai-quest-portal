@@ -210,6 +210,8 @@ public static class HistoricalImportCommand
         }
 
         LoadRaidUsage(Path.Combine(root, manifest.RaidUsageEvidence), manifest, plan, report);
+        foreach (var duplicate in plan.RaidUsages.GroupBy(x => new { x.Participant.ParticipantId, x.Session.Key }).Where(x => x.Count() > 1))
+            report.Errors.Add(new("RaidParticipationConflict", $"Participant '{duplicate.Key.ParticipantId}' has more than one usage for raid session '{duplicate.Key.Key}'."));
         ReconcileRaidUsage(plan, report);
         await DetectChangedSourcesAsync(db, plan, report);
         return plan;
