@@ -48,7 +48,7 @@ Teams remains an awareness, call-to-action and deep-link surface. The portal/API
 
 | Event | Authoritative trigger | Current workflow verification | Commit rule |
 |---|---|---|---|
-| Challenge Published | The first successful `Draft` to published/available transition through the manager publish command | `POST /api/manager/challenges/{id}/publish` and `ChallengeAdministrationService.PublishAsync`; the current implementation names the persisted available state `Open` although the frozen lifecycle calls it `Published` | Notification becomes eligible only from the committed transition; Draft saves, edits, reads, seed/import and a replay that performs no new transition do not trigger it |
+| `ChallengePublished` | The first successful manager publish command that commits the persisted transition `Draft → Open` | `POST /api/manager/challenges/{id}/publish` and `ChallengeAdministrationService.PublishAsync`; `Open` is the persisted state | Notification becomes eligible only from the committed transition; Draft saves, edits, reads, seed/import and a replay that performs no new transition do not trigger it |
 | Participant Submitted | Successful initial submission creation | `POST /api/submissions`; `CreateAsync` writes `Submission`, beneficiaries, evidence and `Submitted` event in one serializable transaction | After the entire transaction commits |
 | Participant Resubmitted | Successful `NeedsEvidence` to `Resubmitted` transition | `PUT /api/submissions/{id}/resubmission`; `ResubmitAsync` replaces text/link evidence, appends attachments and writes `Resubmitted` in one serializable transaction | After the entire transaction commits; it is a new event, not another initial submission |
 | Needs Evidence Requested | Successful review transition to `NeedsEvidence` | `POST /api/submissions/{id}/review`; `ReviewAsync` supports `ReviewAction.NeedsEvidence` and requires a manager comment | After the review transaction commits |
@@ -57,6 +57,13 @@ Teams remains an awareness, call-to-action and deep-link surface. The portal/API
 | Leaderboard Announcement | A new explicit manager command selecting a reporting cycle and choosing **Post leaderboard to Teams** | The authoritative Individual Leaderboard query and competition-ranking calculation exist; no announcement command exists yet | The command creates one intentional announcement event from a server-read snapshot; XP changes never trigger it automatically |
 
 All notification eligibility has outbox-after-commit business semantics: a notification may be recorded atomically with its source transaction and delivered later, but Teams must never communicate an event that failed to persist. The architecture/mechanism is intentionally not decided here.
+
+#### Challenge publish terminology reconciliation
+
+- The authoritative persisted transition implemented by the manager Publish command is `Draft → Open`.
+- `ChallengePublished` is the BA-017 semantic business/notification event emitted only after that transition commits successfully.
+- `ChallengePublished` is not a new `ChallengeStatus`, and this decision introduces no persisted `Published` state.
+- Older BA-011 and frozen-spec references to persisted `Published` are superseded for implementation terminology by persisted `Open`. “Published” may still be used as a human description of the successful publish action.
 
 #### Logical audiences and identity
 
@@ -363,13 +370,12 @@ Decided by: User
 
 #### Lifecycle
 
-- Persist only `Draft`, `Published`, `Closed` and `Archived` challenge statuses.
-- Open is not a persisted manager-controlled status. The general challenge Open state is derived when `Challenge.Status == Published`, current time is at or after `openAt`, and current time is at or before `closeAt`.
+- **Implementation terminology reconciliation (2026-08-30):** the earlier persisted-`Published` wording below is superseded by the authoritative implementation and BA-017 clarification. The manager Publish command persists `Draft → Open`; `ChallengePublished` is a semantic event, not a state.
+- The current implemented contract persists `Draft` and `Open`. `Closed` and `Archived` remain target lifecycle values without current transition endpoints.
+- The general challenge availability window uses `Challenge.Status == Open` together with `openAt`, `dueAt` and `closeAt`; the persisted `Open` state does not by itself bypass date/deadline eligibility rules.
 - Participant submission/resubmission eligibility additionally applies the existing deadline/override rules. An explicit participant override may extend that participant's effective close boundary beyond the general `closeAt` under BA-006; it does not change the persisted challenge status.
-- The UI may show derived labels such as Scheduled or Open without persisting them as challenge statuses.
-- The only lifecycle is `Draft → Published → Closed → Archived`.
-- Publishing is irreversible; Published cannot return to Draft.
-- Only Closed challenges may be Archived. Archive is irreversible in this chunk and restore is unsupported.
+- The implemented manager lifecycle is `Draft → Open`; publish is irreversible and Open cannot return to Draft.
+- `Open → Closed → Archived` remains documented target behavior and an implementation gap until explicit endpoints exist. Only Closed-to-Archived is intended; restore remains unsupported.
 
 #### Editing
 

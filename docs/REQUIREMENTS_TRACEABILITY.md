@@ -113,7 +113,7 @@ These items do not imply that unresolved business rules have been decided.
 
 The Product Owner approved a deliberately small outbound notification scope. This supersedes the historical Teams-integration deferral only for BA-017; Teams remains a non-authoritative awareness, call-to-action and deep-link surface. Portal authorization and persisted portal state remain authoritative.
 
-Current workflow verification confirms seven Monday events: Challenge Published; initial Submitted; Resubmitted after NeedsEvidence; Needs Evidence; Approved with resulting beneficiary XP; terminal Rejected; and explicit manager-triggered Leaderboard Announcement. Rejected is supported by the current submission status, review action and review endpoint. The leaderboard query exists, but the explicit post command does not yet exist and is part of the future implementation scope.
+Current workflow verification confirms seven Monday events: `ChallengePublished`; initial Submitted; Resubmitted after NeedsEvidence; Needs Evidence; Approved with resulting beneficiary XP; terminal Rejected; and explicit manager-triggered Leaderboard Announcement. `ChallengePublished` means the first successful manager publish command that commits persisted `Draft → Open`; it is a semantic business/notification event, not a persisted `Published` status. Rejected is supported by the current submission status, review action and review endpoint. The leaderboard query exists, but the explicit post command does not yet exist and is part of the future implementation scope.
 
 #### Traceability rules
 
@@ -132,7 +132,7 @@ Current workflow verification confirms seven Monday events: Challenge Published;
 
 | Event | Trigger | Audience | Visibility | Deep link | Duplicate rule | Supersession rule | Monday status |
 |---|---|---|---|---|---|---|---|
-| Challenge Published | First committed Draft-to-published/available transition | `QUEST_GENERAL_AUDIENCE` | Public challenge summary and task XP only | Challenge Detail | Once per transition/destination | Suppress if Closed/Archived before send | `MUST_HAVE` |
+| `ChallengePublished` | First committed manager Publish transition `Draft → Open` | `QUEST_GENERAL_AUDIENCE` | Public challenge summary and task XP only | Challenge Detail | Once per transition/destination | Suppress if Closed/Archived before send | `MUST_HAVE` |
 | Participant Submitted | Committed initial submission | `QUEST_MANAGER_AUDIENCE` | Claimant, challenge/task, beneficiary count, timestamp; no evidence | Manager Review/submission detail | Once per Submitted event/destination | Suppress unless still Submitted | `MUST_HAVE` |
 | Participant Resubmitted | Committed NeedsEvidence-to-Resubmitted transition | `QUEST_MANAGER_AUDIENCE` | Claimant, challenge/task, Resubmitted wording and timestamp; no evidence | Manager Review/submission detail | Once per Resubmitted event/destination; later resubmission is new | Suppress unless still Resubmitted | `MUST_HAVE` |
 | Needs Evidence | Committed NeedsEvidence review outcome | claimant `PARTICIPANT_PRIVATE` | Challenge/task, participant-visible feedback, authoritative effective deadline | My Activity submission/resubmit | Once per event/claimant | Suppress unless still NeedsEvidence | `MUST_HAVE` |
@@ -301,16 +301,16 @@ The initial chunk includes an itemized participant ledger showing signed amount,
 
 ### Lifecycle and availability
 
-Persist `Draft`, `Published`, `Closed` and `Archived` only. The allowed irreversible lifecycle is `Draft → Published → Closed → Archived`; Published cannot return to Draft, only Closed may be Archived, and restore is unavailable in this chunk.
+**Implementation terminology reconciliation (2026-08-30):** older BA-011 wording that described `Published` as persisted is superseded. The current manager Publish command persists `Draft → Open`; Open cannot return to Draft. `ChallengePublished` is the semantic BA-017 event produced only by a successful committed publish command, not another persisted status. `Open → Closed → Archived` remains target behavior and an implementation gap until transition endpoints exist; restore remains unavailable.
 
-Open is derived rather than persisted. The general challenge Open state requires Published status and current time from `openAt` through `closeAt` inclusive. Participant submission/resubmission eligibility additionally applies the existing deadline/override rules; an explicit BA-006 override may extend that participant's effective close boundary without changing challenge status. UI labels such as Scheduled and Open are presentation only.
+Open is persisted by the successful manager Publish command. General availability additionally requires current time from `openAt` through `closeAt` inclusive. Participant submission/resubmission eligibility also applies the existing deadline/override rules; an explicit BA-006 override may extend that participant's effective close boundary without changing challenge status. Scheduled/overdue/beyond-close labels remain derived temporal presentation.
 
 ### Editing and dates
 
 - Draft challenges permit editing of every challenge, task and configuration field.
-- Published challenges lock `openAt`, task list/identity/order, task XP, evidence requirements, scoring modes and all participation/team-policy fields.
-- Published name/title, description and supported hero image remain editable.
-- Published `dueAt` and `closeAt` may only be extended, never shortened.
+- Open (successfully published) challenges lock `openAt`, task list/identity/order, task XP, evidence requirements, scoring modes and all participation/team-policy fields.
+- Open (successfully published) challenge name/title, description and supported hero image remain editable.
+- Open (successfully published) `dueAt` and `closeAt` may only be extended, never shortened.
 - Closed and Archived challenges are read-only in this chunk.
 - Existing participant deadline overrides remain authoritative and unchanged.
 - `openAt`, `dueAt` and `closeAt` are required, with `openAt < dueAt <= closeAt`; equal due and close times are valid.
@@ -484,7 +484,7 @@ Non-XP headers: `Physical Raid Pass Assigned`, `Physical Raid Pass Used`, `Remot
 | Manual XP Award | **BA-014 RESOLVED — SAFE TO IMPLEMENT** |
 | Cycle Administration | **BA-015 RESOLVED — SAFE TO IMPLEMENT WITH THE REQUIRED CYCLEPARTICIPANTEVENT AUDIT MODEL** |
 | Raid Administration MVP | **BA-016 BUSINESS READY — SAFE FOR ARCHITECT REVIEW** |
-| Teams Notification MVP | **BA-017 BUSINESS READY — SAFE FOR TEAMS ARCHITECT REVIEW; IMPLEMENTATION NOT STARTED** |
+| Teams Notification MVP | **BA-017 BUSINESS RULES DONE; ARCHITECTURE DONE; IMPLEMENTATION NOT STARTED; TENANT/CONFIGURATION NOT READY** |
 | Step 7 evidence/attachment capability | **BUSINESS READY** |
 | `Custom` evidence validation | **DEFERRED — NOT IN INITIAL STEP 7 SHOWCASE** |
 | Production malware-scanner integration | **DEFERRED TO PRODUCTION READINESS; PRODUCTION ATTACHMENTS MUST REMAIN DISABLED WITHOUT IT** |

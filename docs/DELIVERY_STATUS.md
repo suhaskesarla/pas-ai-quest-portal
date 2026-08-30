@@ -14,9 +14,11 @@ The Delivery Manager updates this file after:
 - a defer/rescope decision; or
 - a demo release.
 
-Last audited: **2026-08-30**  
-Audited branch: **`feature/raid-administration` at `6499520`**  
-Working tree: **dirty; Raid Administration backend/migration/tests and BA-016 documentation are uncommitted**.
+Last audited: **2026-08-30**
+
+Audited branch: **`feature/raid-administration` at `a1aa496`**
+
+Working tree at update start: **clean except for this delivery-dashboard update**.
 
 ## Status Rules
 
@@ -36,8 +38,8 @@ Only these feature statuses are used:
 
 | Status | Count |
 |---|---:|
-| `DONE` | 22 |
-| `IN_PROGRESS` | 3 |
+| `DONE` | 23 |
+| `IN_PROGRESS` | 2 |
 | `BLOCKED` | 1 |
 | `NOT_STARTED` | 5 |
 | `DEFERRED` | 4 |
@@ -65,7 +67,7 @@ Only these feature statuses are used:
 | Post-approval TaskApproval correction | BA-013 resolved; ManualAward/Raid correction excluded | Append-only direct adjustment to original grant | `DONE` | Manager correction command and audit event | Scoresheet participant drill-down correction dialog | SQL/API/component tests | Clean Docker scoresheet/correction passed | Ready | Yes | Yes | None for BA-013 scope | None |
 | Manual XP Award | BA-014 resolved | Request-ID idempotent ManualAward grant | `DONE` | Options and create command | Scoresheet Award XP dialog/confirmation | SQL/API/component/concurrency tests | Clean and preserved Docker manual-award passed | Ready | Yes | Yes | Category administration is not part of this workflow | None |
 | Manager Scoresheet and participant drill-down | BA-012 resolved | Ledger-based reporting read model | `DONE` | Cycle summary, all statuses/zero rows, paged detail | Summary, source totals, detail, correction/manual-award entry points | SQL/API/component tests | Clean Docker scoresheet passed | Ready | Yes | Yes | No export/rank/team XP by decision | None |
-| Manager dashboard and navigation | Demo priority completed | Existing app shell | `DONE` | Uses review/reporting/admin APIs | Focused supported navigation and dashboard cards | App/component tests | Clean Docker manager-navigation passed | Ready | Yes | Yes | Add Raid destination only if Raid reaches acceptance | None |
+| Manager dashboard and navigation | Demo priority completed | Existing app shell | `DONE` | Uses review/reporting/admin APIs | Focused supported navigation, dashboard cards and Raid destination | App/component tests | Clean Docker manager-navigation and focused Raid navigation passed | Ready | Yes | Yes | None for current demo scope | None |
 | Participant Dashboard | Participant reporting decisions resolved | Cycle-scoped ledger/read models | `DONE` | Total, rank, status, recent activity and raid-pass balances | Cycle selector/dashboard cards | SQL/API/component tests | Clean Docker reporting/manual-award paths passed | Ready | Yes | Yes | None for current scope | None |
 | Participant XP Activity | Reporting rules resolved | Cursor-paged append-only ledger projection | `DONE` | Friendly source/provenance and signed entries | Paged activity view | SQL/API/component tests | Reporting and manual-award Docker paths | Ready | Yes | Yes | Full unified canonical regression remains pending | None |
 | Individual leaderboard/ranking | BA-004 participant reporting decision resolved | Active roster, zero rows and competition ranking | `DONE` | Cycle-scoped individual ranking | Participant leaderboard view | SQL/API/component tests | Reporting/manual-award Docker coverage; isolated tie browser fixture remains fixme | Ready for seeded demo | Nice to have | Yes | Optional isolated 1,2,2,4 browser fixture | QA, post-demo |
@@ -75,14 +77,14 @@ Only these feature statuses are used:
 | Cycle Administration | BA-015 and audit amendment resolved | Rowversion plus append-only participant-event migration approved/implemented | `DONE` | Create/edit, Active→Closing→Finalised, enrollment/status commands | Full manager Cycle Administration UI | SQL/API/component/concurrency tests | Preserved production-Docker cycle-admin passed on 2026-08-29 | Ready, but optional in story | Nice to have | Yes | Update stale E2E checkpoint/TODO catalog during final regression maintenance | QA documentation maintenance |
 | Participant deadline-override administration UI | BA-006 behavior resolved; initial challenge UI did not include it | Existing deadline override model available | `IMPLEMENTATION_GAP` | Eligibility consumes overrides; no complete manager administration workflow identified | No manager override UI | Lower-level eligibility tests | No focused manager browser path | Not ready | No | Post-demo if required operationally | Define and implement audited manager command/UI | Product Owner/BA then developers |
 | Raid participant read models | BA-016 preserves current display; passes are non-XP | Existing reporting projections | `DONE` | Dashboard balances and Raid XP activity/reporting | Dashboard/XP Activity/Scoresheet/leaderboard display | Import/reporting tests | Focused reporting Docker coverage | Ready as read-only evidence | Nice to have | Yes | None | None |
-| Raid Administration MVP | BA-016 resolved in current uncommitted docs | Architecture review is still recorded as required; implementation adds rowversions, uniqueness and serialized commands | `IN_PROGRESS` | Uncommitted migration, endpoints, service and SQL/concurrency tests exist | No Raid Administration frontend or navigation | New SQL/API/concurrency tests authored but no final run evidence for current dirty diff | None | Not ready | Nice to have only | Optional product capability; not production prerequisite | Confirm architecture/Tech Lead outcome, validate migration/tests, build compact manager UI, focused QA and Docker run | Backend/Architect/Tech Lead, then Frontend/QA |
+| Raid Administration MVP | BA-016 resolved | Approved implementation uses rowversions, strengthened participant/session uniqueness, append-only participation and reviewed concurrency locking | `DONE` | Complete migration, session/pass/participation/Raid XP endpoints and final backend gate PASS | Complete manager navigation and Raid Administration UI: session create/edit, Physical/Remote passes, participation, Raid XP and Finalised read-only behavior | Backend suites plus deterministic controlled-overlap concurrency tests 11/11 PASS; frontend tests cover stale responses, timestamp round-trip and retry intent | Focused Raid Administration Playwright 1/1 PASS; no fixmes or product defects | Demo-ready | Yes | Optional product capability; not production prerequisite | None for current demo scope | None |
 | Historical import and reconciliation | Step 4 approved | Fail-closed provenance/import-control design | `DONE` | Import command, immutable provenance, reconciliation, rerun/conflict/rollback | Operator CLI/report only; no portal UI required | Extensive SQL-backed import tests | Browser not applicable | Ready as completed foundation | No | Data migration requirement | BA-007 blocks only unsupported Go Pass 3 expansion | None for approved synthetic/canonical scope |
-| Focused browser/Docker feature acceptance | Per-feature acceptance approach approved | Vite and production Docker/nginx/API/SQL/Azurite tiers | `DONE` | Runtime paths exercised | Implemented feature journeys exercised | Feature tests exist | Passing evidence exists for auth/workflow, attachments, reporting, challenges, scoresheet/correction, manual award, manager navigation and cycle admin | Ready at focused-feature level | Yes | Yes | Add Raid only after frontend; preserve truthful evidence identity | QA |
+| Focused browser/Docker feature acceptance | Per-feature acceptance approach approved | Vite and production Docker/nginx/API/SQL/Azurite tiers | `DONE` | Runtime paths exercised | Implemented feature journeys exercised | Feature tests exist | Passing evidence exists for auth/workflow, attachments, reporting, challenges, scoresheet/correction, manual award, manager navigation, cycle admin and Raid Administration | Ready at focused-feature level | Yes | Yes | Preserve truthful evidence identity in canonical execution | QA |
 | Canonical full-demo regression | Designed in E2E checkpoint; not accepted/executed | Clean Docker orchestration design exists | `IN_PROGRESS` | Required APIs mostly exist | Required core UI exists | Full-demo spec remains `test.fixme`; broad suite includes many fixmes | Final coherent clean-Docker journey has not run | Not ready as a release gate | Yes | Yes | Refresh stale E2E design for Cycle/Raid state, peer review, enable and execute one canonical journey | QA |
 | Durable restart/persistence orchestration | Designed only | Compose persistence strategy documented | `NOT_STARTED` | Seeder/migrations are idempotent at lower layers | Not applicable | Restart specs are all `fixme` | Never executed | Not required for immediate demo | No | Yes | Build serial down/up-without-volume-removal acceptance | QA/DevOps |
 | Production evidence/blob security | Step 7 architecture approved; production scanner required | Managed identity/user-delegation/private blob direction implemented in part | `IN_PROGRESS` | Azure path and validation exist; production scanner is deliberately disabled | Attachment UX exists | Security/config tests exist | Local Azurite Docker only | Local-ready, not production-ready | No | Yes | Integrate real malware scanner, Azure identity/storage configuration and security validation | Security + Backend/DevOps |
 | Evidence retention/deletion | BA-010 policy unresolved | Configurable/no destructive default is frozen | `BLOCKED` | No automatic deletion, correctly | No retention controls | No assumed-policy tests | None | Safely excluded | No | Yes before enabling retention/purge | Obtain approved retention and records-management policy | Product Owner/BA/Security |
-| Teams integration | Product spec plans phased outbound then structured inbound; no detailed BA notification contract approved | High-level asynchronous/outbox principles only; SDK choice deferred | `DEFERRED` | No notification delivery, conversation reference, card/deep-link or inbound handler | No Teams tab/embedded auth UX | None | None | Not ready | No | Optional later phase | Scope notification events/content, select one supported SDK, design app/tenant permissions, manifest/tab/cards/deep links, implement and test | Product Owner first; then BA/Architect/Security |
+| Teams Notification MVP | BA-017 business rules **DONE**: seven outbound events, audiences, content/privacy, deduplication, failure, freshness and deep-link intent are approved | Architecture **DONE**; implementation has not started | `DEFERRED` | **NOT_STARTED:** no delivery, destination configuration, identity mapping or leaderboard-post command | **NOT_STARTED:** no Teams UI | None | None | **NOT_READY:** tenant/app registration, destinations and durable private-recipient identity mapping are external dependencies | No; remains outside canonical immediate demo | Production tenant/configuration required if later released | Keep deferred; implementation and tenant/configuration remain outstanding | Delivery prioritisation; tenant/admin dependency if reactivated |
 | Advanced analytics | Listed in screen inventory but explicitly deferred from local demo | No dedicated read-model/API design | `DEFERRED` | No analytics endpoint | No Analytics navigation/screen | None | None | Not ready | No | Optional product scope | Product Owner must define bounded value before implementation | Product Owner |
 | Advanced Raid capabilities | BA-016 explicitly excludes teams, correction, delete/restore, reversals, QR, bulk, analytics and integrations | Not designed for current MVP | `DEFERRED` | None beyond MVP | None | None | None | Excluded | No | No unless later selected | Re-scope individually after MVP feedback | Product Owner |
 | Score-dispute workflow | BA-008 open and deliberately outside current workflow | Not designed | `DEFERRED` | None | None | None | None | Excluded | No | Optional | Decide whether disputes stay external | Product Owner/BA |
@@ -101,6 +103,7 @@ Only these feature statuses are used:
 - Atomic Task XP visible in Participant Dashboard, XP Activity and Manager Scoresheet.
 - Manual XP Award visible across the same reporting surfaces.
 - Post-approval TaskApproval correction visible in the ledger and totals.
+- Raid Administration continuity: select a cycle/session, demonstrate one pass operation and one Raid XP award, then verify reporting integration.
 - One enabled, executed canonical clean-Docker browser journey with timestamped screenshots and summary.
 
 ### 2. Next Demo Nice to Have
@@ -108,8 +111,7 @@ Only these feature statuses are used:
 - Cycle Administration as a short setup/close-out segment.
 - My Team and Individual Leaderboard.
 - Attachment evidence; use only if demo environment remains stable.
-- Read-only Raid pass/Raid XP reporting.
-- Raid Administration only if its frontend and focused acceptance finish before the cut line.
+- Additional Raid Administration detail beyond the one concise integrated-demo segment; focused Raid QA already proves its edge cases.
 
 ### 3. Post-Demo Required
 
@@ -136,31 +138,30 @@ Only these feature statuses are used:
 
 ### Raid Administration
 
-- **BA complete:** Yes, BA-016 is recorded in the current dirty documentation.
-- **Architecture complete:** Not evidenced. Traceability still says “safe for Architect review.”
-- **Backend implementation:** Substantial uncommitted implementation exists: migration, rowversions, participant/session uniqueness, service, endpoints and concurrency-focused tests.
-- **Tech Lead review:** No formal completed review evidence found for the current diff.
-- **Concurrency remediation:** Implemented in code/tests, including serialization and uniqueness, but not independently accepted on the current dirty tree.
-- **Frontend:** Not started; no route, navigation item, API client or manager screen.
-- **QA:** Not completed; no focused browser test or clean-Docker evidence.
-- **Exact gate:** finish technical review/validation, then frontend, then focused QA. Until then it remains outside the mandatory demo path.
+- **BA complete:** Yes, BA-016 is resolved for the current MVP.
+- **Architecture/backend gate:** Complete. Migration preflight, rowversions, append-only participation, strengthened participant/session uniqueness and concurrency locking passed final review.
+- **Tech Lead/concurrency gate:** Complete. Deterministic controlled-overlap tests passed 11/11; final GateHook review passed with no production behavior change.
+- **Frontend:** Complete, including navigation, session/pass/participation/Raid XP workflows, Finalised read-only state, stale-response protection, timestamp round-trip and idempotent retry UX.
+- **QA:** `RAID ADMIN BROWSER QA: PASS`; focused Playwright 1/1 passed with no fixmes or product defects.
+- **Exact gate:** None for current demo scope. Advanced Raid features remain separately deferred.
 
 ### Teams Integration
 
 | Item | Audit result |
 |---|---|
-| Approved product scope | Phased intent exists in frozen spec: outbound notifications, then structured inbound capture. Immediate release scope is deferred. |
-| BA notification rules | Not frozen at event/content/recipient/failure-detail level. |
-| Architecture | High-level asynchronous/outbox and SDK constraints only; no implementation design approval. |
+| Approved product scope | BA-017 business rules are complete for the bounded outbound Teams Notification MVP. This has not promoted Teams into the canonical immediate demo. |
+| BA notification rules | `DONE`: seven events, audiences, minimum/private content, duplicate/failure/freshness semantics and logical deep links are approved. |
+| Architecture | `DONE`: approved Teams architecture review. No implementation is implied by this gate. |
 | Teams manifest | Not present. |
 | Teams tab | Not present. |
 | Teams authentication | Not present. |
 | Notification delivery | Not present. |
 | Adaptive Cards | Not present. |
 | Deep links | Not present. |
-| Tests | None. |
+| Tenant/configuration | `NOT_READY`: real tenant/app registration, configured destinations and durable `(tenantId, oid)` private-recipient mapping remain external dependencies. |
+| Tests | None; implementation is `NOT_STARTED`. |
 
-Conclusion: Teams is **discussed/planned and explicitly deferred**, not implemented.
+Conclusion: BA-017 business rules and architecture are **DONE**. Implementation is **NOT_STARTED**, tenant/configuration is **NOT_READY**, and Teams remains **deferred from the canonical immediate demo**.
 
 ### Entra Authentication
 
@@ -180,27 +181,26 @@ Conclusion: Step 5A is complete; real Entra Step 5B is **not started** and produ
 
 ### E2E and Regression
 
-- **Focused browser tests executed:** Yes. Passing evidence exists for Step 6 workflow, clean Docker showcase, private attachments, participant reporting, Challenge Administration, Manager Scoresheet/correction, Manual XP Award, manager navigation and preserved-Docker Cycle Administration.
+- **Focused browser tests executed:** Yes. Passing evidence exists for Step 6 workflow, clean Docker showcase, private attachments, participant reporting, Challenge Administration, Manager Scoresheet/correction, Manual XP Award, manager navigation, Cycle Administration and Raid Administration.
 - **Broad regression design:** Extensive and Tech Lead-reviewed, but the checkpoint explicitly says execution deferred and QA peer review incomplete.
 - **Fixme scenarios:** Numerous concurrency, persistence, ranking/history, unified-ledger and canonical-demo scenarios remain `test.fixme`; they are not coverage.
 - **Full clean-Docker demo:** Older focused clean-Docker suites ran successfully, but the current canonical all-feature `full-quest-demo.spec.ts` remains `test.fixme` and has not run.
-- **Final integrated E2E:** Not completed against the current feature set and dirty Raid worktree.
-- **Exact gate:** update the design artifacts for completed Cycle Admin and current Raid scope, enable one bounded canonical path, then execute it once from `docker compose down -v` with production frontend/nginx and normal bootstrap.
+- **Final integrated E2E:** Not completed against the current feature set including Raid Administration.
+- **Exact gate:** update the canonical spec to include one concise Raid continuity segment, then execute once from `docker compose down -v` with production frontend/nginx and normal bootstrap. Focused suites already own Raid and Cycle edge cases.
 
 ## Current Delivery Risks
 
 ### HIGH
 
-1. **Raid Administration is backend-heavy but not a usable feature.** It changes schema/concurrency behavior on a dirty branch, lacks recorded final technical acceptance, and has no frontend or QA.
-2. **The canonical integrated demo has not executed.** Focused suites passed independently, but the current all-feature release story is still a `fixme` design.
-3. **Delivery documents are stale and contradictory.** `AGENTS.md`, `CURRENT_STATE.md`, and the E2E checkpoint still describe Step 5/Cycle Administration as not started or under implementation even though later commits and browser evidence exist. This dashboard should govern delivery status until those documents are deliberately reconciled.
+1. **The canonical integrated demo has not executed.** Focused suites, including Raid Administration, passed independently, but the current release story is still a `fixme` design.
+2. **Delivery documents are stale and contradictory.** `AGENTS.md`, `CURRENT_STATE.md`, and the E2E checkpoint contain older build-step or feature-state claims. This dashboard governs delivery status until those documents are deliberately reconciled.
 
 ### MEDIUM
 
 1. **Real Entra and tenant/app registration are completely outside the tested runtime.** This is acceptable for the local demo but remains a substantial production dependency.
 2. **Production attachments cannot be enabled safely yet.** The production malware scanner is intentionally absent/disabled.
 3. **Persistence restart automation is designed but not executable.** Seeder/migration behavior is tested below the full Compose restart level.
-4. **Raid migration compatibility needs final validation.** It strengthens participation uniqueness and adds rowversions used by historical import/seed paths.
+4. **Teams readiness depends on external configuration.** Business rules and architecture are complete, but implementation has not started and tenant/app registration, destinations and durable private-recipient mapping are not ready. It must not enter the immediate demo critical path.
 
 ### LOW
 
@@ -219,14 +219,14 @@ Conclusion: Step 5A is complete; real Entra Step 5B is **not started** and produ
 8. Open Scoresheet and show Task XP plus participant ledger provenance.
 9. Award categorized Manual XP and show the updated total.
 10. Correct the TaskApproval XP and demonstrate the immutable original plus signed adjustment.
-11. Switch to Participant and show Dashboard, XP Activity, Individual Leaderboard and optionally My Team.
-12. Optionally show Cycle Administration or read-only Raid pass data. Do not include Raid Administration, Teams or Entra unless their status changes.
+11. Open Raid Administration, select the seeded cycle/session, perform one representative pass action and award Raid XP.
+12. Return to Scoresheet or Participant Dashboard/XP Activity to prove the Raid XP is integrated while pass Assigned/Used remains non-XP.
+13. Optionally show Cycle Administration, Individual Leaderboard or My Team. Do not include Teams or Entra.
 
 ## Demo Cut Line
 
 | In-progress next-demo candidate | Remove from demo scope no later than | Demo that remains without it |
 |---|---|---|
-| Raid Administration MVP | If frontend + focused component/API integration is not complete before final canonical Docker E2E begins | Full challenge→submission→review→XP→manual award→correction story; show existing read-only Raid balances only |
 | Canonical full-demo regression | It cannot be cut as an acceptance gate. If it does not pass by release-candidate freeze, do not call the build demo-complete | Individual focused feature demos remain available, but there is no supported unified demo release |
 | Production evidence/blob security | Keep out of local-demo scope now; use proven Azurite attachment path or structured text/link evidence | Complete local workflow still works; production deployment remains blocked |
 
@@ -234,12 +234,9 @@ Conclusion: Step 5A is complete; real Entra Step 5B is **not started** and produ
 
 | Decision | Owner | Timing / impact |
 |---|---|---|
-| Confirm Raid Administration remains a next-demo nice-to-have rather than must-have | Product Owner | Decide now; prevents backend work from forcing an unfinished UI into the critical path |
-| Approve or reject the current Raid concurrency/schema design if not already approved elsewhere | Senior Architect | Before treating the uncommitted migration/backend as implementation-complete |
 | Team leaderboard scoring (BA-003) | Product Owner / BA | Post-demo; blocks only team score calculation |
 | Evidence retention/deletion (BA-010) | Product Owner / BA with Security input | Before production retention/purge behavior |
 | Decide whether challenge close/archive, deadline overrides and manager team administration remain committed product scope | Product Owner | Post-demo prioritisation; not needed for current story |
-| Define Teams notification events/content/recipients only if Teams is reactivated | Product Owner | Future; no meeting needed while deferred |
 
 ## Delivery Recommendation
 
@@ -252,6 +249,7 @@ Conclusion: Step 5A is complete; real Entra Step 5B is **not started** and produ
 - Scoresheet and participant reporting update from atomic Task XP.
 - Manual XP Award.
 - TaskApproval correction with append-only provenance.
+- A concise Raid Administration segment proving a pass operation, Raid XP and reporting continuity; focused Raid QA owns the edge cases.
 - One enabled, passing canonical clean-Docker Playwright journey with screenshots and summary.
 
 ### B. Exact next-demo nice-to-have scope
@@ -259,8 +257,7 @@ Conclusion: Step 5A is complete; real Entra Step 5B is **not started** and produ
 - Cycle Administration.
 - Individual Leaderboard and My Team as short reporting views.
 - Attachment evidence.
-- Read-only Raid pass/Raid XP reporting.
-- Raid Administration only after frontend and focused QA are complete.
+- Additional Raid Administration detail beyond the concise integrated segment.
 
 ### C. Defer immediately
 
@@ -274,13 +271,12 @@ Conclusion: Step 5A is complete; real Entra Step 5B is **not started** and produ
 
 ### D. Correct implementation sequence from now
 
-1. Finish or explicitly cut Raid Administration: technical acceptance → backend validation → frontend → focused QA.
-2. Reconcile E2E design artifacts with completed Cycle Admin and the Raid include/cut decision.
-3. Enable and run the bounded canonical clean-Docker demo journey.
-4. Fix only defects that break that journey.
-5. Declare demo release and capture evidence.
-6. After demo, prioritize remaining portal gaps.
-7. Begin production track: Entra, production blob/scanner, CI/CD and Azure deployment.
+1. Reconcile the canonical E2E design with completed Cycle Admin and Raid Administration without duplicating their focused suites.
+2. Enable and run the bounded canonical clean-Docker demo journey.
+3. Fix only defects that break integration/demo continuity.
+4. Declare the demo release and capture evidence.
+5. After demo, decide whether to activate BA-017 Teams implementation and obtain tenant/configuration readiness.
+6. Begin the production track: Entra, production blob/scanner, CI/CD and Azure deployment.
 
 ### E. Teams and Entra in the next demo
 
@@ -291,13 +287,13 @@ Conclusion: Step 5A is complete; real Entra Step 5B is **not started** and produ
 
 - Do not expand Raid beyond BA-016 MVP.
 - Do not start Teams, Entra, analytics, team scoring, evidence purge or advanced Raid work before the demo release.
-- If Raid frontend cannot finish before the canonical E2E gate, stop Raid demo work and cut it cleanly; do not delay the proven core story.
+- Do not add new feature-development work before canonical E2E. Raid and Cycle focused suites have already proven their detailed behavior.
 
 ## Discussed but Not Formally Approved for Delivery
 
 - Score-dispute portal workflow.
 - Wall of Fame/gallery/offline artifact workflow.
-- Detailed Teams notification/card/deep-link behavior.
+- Teams implementation details and tenant configuration beyond the approved BA-017 business/architecture baseline.
 - Team leaderboard formula.
 - Evidence retention/purge periods.
 - Advanced Raid operations beyond BA-016.
