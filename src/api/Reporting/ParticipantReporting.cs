@@ -22,7 +22,7 @@ public sealed record CycleTeamView(Guid CycleTeamId, string Name, IReadOnlyList<
 public sealed record ChallengeGroupView(Guid ParticipationId, Guid ChallengeId, string ChallengeName, ChallengeStatus ChallengeStatus, IReadOnlyList<TeamMemberView> Members);
 public sealed record ParticipantTeamView(CycleTeamView? Team, IReadOnlyList<ChallengeGroupView> ChallengeGroups);
 
-public sealed class ParticipantReportingService(QuestDbContext db, IQuestCurrentUser currentUser, SubmissionWorkflowService workflow)
+public sealed class ParticipantReportingService(QuestDbContext db, IQuestCurrentUser currentUser, SubmissionWorkflowService workflow, IndividualLeaderboardQuery? leaderboardQuery = null)
 {
     public async Task<ReportingCyclesView> ReportingCyclesAsync(CancellationToken ct)
     {
@@ -56,19 +56,7 @@ public sealed class ParticipantReportingService(QuestDbContext db, IQuestCurrent
     public async Task<IReadOnlyList<LeaderboardEntry>> LeaderboardAsync(Guid cycleId, CancellationToken ct)
     {
         Guid current = (await AccessibleCycle(cycleId, ct)).ParticipantId;
-        var rows = await (from membership in db.CycleParticipants.AsNoTracking()
-            join participant in db.Participants.AsNoTracking() on membership.ParticipantId equals participant.Id
-            where membership.CycleId == cycleId && membership.Status == CycleParticipantStatus.Active
-            select new { participant.Id, participant.DisplayName, Total = db.XPEntries.Where(x => x.CycleId == cycleId && x.ParticipantId == participant.Id).Sum(x => (int?)x.Amount) ?? 0 }).ToListAsync(ct);
-        var ordered = rows.OrderByDescending(x => x.Total).ThenBy(x => Normalize(x.DisplayName), StringComparer.Ordinal).ThenBy(x => x.Id).ToArray();
-        var result = new List<LeaderboardEntry>(ordered.Length); int previousTotal = 0; int rank = 0;
-        for (int index = 0; index < ordered.Length; index++)
-        {
-            if (index == 0 || ordered[index].Total != previousTotal) rank = index + 1;
-            previousTotal = ordered[index].Total;
-            result.Add(new(rank, ordered[index].Id, ordered[index].DisplayName, ordered[index].Total, ordered[index].Id == current));
-        }
-        return result;
+        return await (leaderboardQuery ?? new IndividualLeaderboardQuery(db)).ExecuteAsync(cycleId, current, ct);
     }
 
     public async Task<XpActivityPage> XpActivityAsync(Guid cycleId, int limit, string? cursor, CancellationToken ct)

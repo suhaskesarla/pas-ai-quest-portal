@@ -31,6 +31,20 @@ const navigation = [
 
 const readableRole = (role: string) => role.startsWith('Quest.') ? role.slice(6) : role
 
+const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const validGuid = (value: string | null | undefined) => !!value && guidPattern.test(value)
+
+export function resolveNotificationRoute(pathname: string, search: string, isParticipant: boolean, isManager: boolean): string | null {
+  const segments = pathname.split('/').filter(Boolean)
+  if (segments.length === 2 && segments[0] === 'challenges' && validGuid(segments[1]) && (isParticipant || isManager)) return 'challenges'
+  if (segments.length === 3 && segments[0] === 'manager' && segments[1] === 'submissions' && validGuid(segments[2]) && isManager) return 'review'
+  if ((segments.length === 3 || (segments.length === 4 && segments[3] === 'history')) && segments[0] === 'activity' && segments[1] === 'submissions' && validGuid(segments[2]) && isParticipant) return 'activity'
+  const cycleId = new URLSearchParams(search).get('cycleId')
+  if (segments.length === 1 && segments[0] === 'xp-activity' && validGuid(cycleId) && isParticipant) return 'xp-activity'
+  if (segments.length === 1 && segments[0] === 'leaderboard' && validGuid(cycleId) && isParticipant) return 'leaderboard'
+  return null
+}
+
 function DemoAuthControl({ onSwitched }: { onSwitched: () => void }) {
   const { currentUser, demoProfiles, profilesLoading, switching, error, switchDemoProfile, clearDemoSession } = useAuth()
   const [selectedProfile, setSelectedProfile] = useState('')
@@ -68,7 +82,10 @@ function ManagerDashboard({ loading, error, reviewCount, onNavigate }: { loading
 
 function AuthenticatedShell({ api, reports, challengeAdmin, scoresheet, cycleAdmin, raidAdmin }: { api: WorkflowApi; reports: ReportingApi; challengeAdmin: ChallengeAdminApi; scoresheet: ScoresheetApi; cycleAdmin: CycleAdminApi; raidAdmin: RaidAdminApi }) {
   const { currentUser, demoModeAvailable, switching } = useAuth()
-  const [activePage, setActivePage] = useState('dashboard')
+  const roles = new Set(currentUser?.roles ?? [])
+  const isParticipant = roles.has(QUEST_PARTICIPANT_ROLE)
+  const isManager = roles.has(QUEST_MANAGER_ROLE)
+  const [activePage, setActivePage] = useState(() => resolveNotificationRoute(window.location.pathname, window.location.search, isParticipant, isManager) ?? 'dashboard')
   const [challenges, setChallenges] = useState<EligibleChallenge[]>([])
   const [submissions, setSubmissions] = useState<SubmissionView[]>([])
   const [reviewQueue, setReviewQueue] = useState<SubmissionView[]>([])
@@ -76,10 +93,7 @@ function AuthenticatedShell({ api, reports, challengeAdmin, scoresheet, cycleAdm
   const [loading, setLoading] = useState(true)
   const [workflowError, setWorkflowError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const roles = new Set(currentUser?.roles ?? [])
   const items = navigation.filter((item) => item.roles.some((role) => roles.has(role)))
-  const isParticipant = roles.has(QUEST_PARTICIPANT_ROLE)
-  const isManager = roles.has(QUEST_MANAGER_ROLE)
 
   const loadParticipant = useCallback(async () => {
     const [nextChallenges, nextSubmissions] = await Promise.all([api.getEligibleChallenges(), api.getMySubmissions()])
@@ -94,6 +108,11 @@ function AuthenticatedShell({ api, reports, challengeAdmin, scoresheet, cycleAdm
   }, [isParticipant, isManager, loadParticipant, loadManager])
 
   useEffect(() => { void loadWorkflow() }, [loadWorkflow])
+  useEffect(() => {
+    const applyLocation = () => { setSelected(null); setActivePage(resolveNotificationRoute(window.location.pathname, window.location.search, isParticipant, isManager) ?? 'dashboard') }
+    window.addEventListener('popstate', applyLocation)
+    return () => window.removeEventListener('popstate', applyLocation)
+  }, [isManager, isParticipant])
 
   if (!currentUser) return null
 

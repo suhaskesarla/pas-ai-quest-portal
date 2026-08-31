@@ -25,6 +25,72 @@ public sealed class ParticipantConfiguration : IEntityTypeConfiguration<Particip
     }
 }
 
+public sealed class NotificationOutboxConfiguration : IEntityTypeConfiguration<NotificationOutbox>
+{
+    public void Configure(EntityTypeBuilder<NotificationOutbox> b)
+    {
+        b.ToTable("NotificationOutbox", t =>
+        {
+            t.HasCheckConstraint("CK_NotificationOutbox_Attempts", "[AttemptCount] >= 0");
+            t.HasCheckConstraint("CK_NotificationOutbox_Status", "[Status] IN ('Pending','Processing','RetryPending','Sent','Captured','Suppressed','Failed','DeliveryUnknown')");
+            t.HasCheckConstraint("CK_NotificationOutbox_Destination", "([DestinationType] = 'ParticipantPrivate' AND [RecipientParticipantId] IS NOT NULL AND [DestinationKey] COLLATE Latin1_General_100_BIN2 = ('participant:' + LOWER(REPLACE(CONVERT(varchar(36),[RecipientParticipantId]),'-',''))) COLLATE Latin1_General_100_BIN2) OR ([DestinationType] = 'ConfiguredAudience' AND [RecipientParticipantId] IS NULL AND [DestinationKey] IN ('QUEST_GENERAL_AUDIENCE','QUEST_MANAGER_AUDIENCE'))");
+            t.HasCheckConstraint("CK_NotificationOutbox_Completed", "([Status] IN ('Sent','Captured','Suppressed','Failed','DeliveryUnknown') AND [CompletedAt] IS NOT NULL) OR ([Status] IN ('Pending','Processing','RetryPending') AND [CompletedAt] IS NULL)");
+            t.HasCheckConstraint("CK_NotificationOutbox_PayloadVersion", "[PayloadVersion] > 0");
+            t.HasCheckConstraint("CK_NotificationOutbox_DeliveryPhase", "([Status] = 'Processing' AND [DeliveryPhase] IN ('PreDelivery','DeliveryStarted')) OR ([Status] <> 'Processing' AND [DeliveryPhase] IS NULL)");
+        });
+        b.HasKey(x => x.Id);
+        b.Property(x => x.EventType).HasMaxLength(50); b.Property(x => x.DestinationType).HasMaxLength(40); b.Property(x => x.DestinationKey).HasMaxLength(200);
+        b.Property(x => x.AggregateType).HasMaxLength(40); b.Property(x => x.PayloadJson).HasColumnType("nvarchar(max)"); b.Property(x => x.Status).HasMaxLength(30); b.Property(x => x.DeliveryPhase).HasMaxLength(30);
+        b.Property(x => x.ProviderMessageId).HasMaxLength(200); b.Property(x => x.LastErrorCode).HasMaxLength(100); b.Property(x => x.LastErrorSummary).HasMaxLength(1000); b.Property(x => x.TerminalReason).HasMaxLength(500);
+        b.HasIndex(x => new { x.EventId, x.DestinationType, x.DestinationKey }).IsUnique();
+        b.HasIndex(x => new { x.Status, x.NextAttemptAt }); b.HasIndex(x => x.LeaseExpiresAt); b.HasIndex(x => new { x.EventType, x.CreatedAt }); b.HasIndex(x => x.RecipientParticipantId);
+        b.HasOne<Participant>().WithMany().HasForeignKey(x => x.RecipientParticipantId).Restrict();
+    }
+}
+
+public sealed class ParticipantExternalIdentityConfiguration : IEntityTypeConfiguration<ParticipantExternalIdentity>
+{
+    public void Configure(EntityTypeBuilder<ParticipantExternalIdentity> b)
+    {
+        b.ToTable("ParticipantExternalIdentities", t => t.HasCheckConstraint("CK_ParticipantExternalIdentities_Provider", "[Provider] = 'Entra'"));
+        b.HasKey(x => x.Id); b.Property(x => x.Provider).HasMaxLength(40);
+        b.HasIndex(x => new { x.Provider, x.TenantId, x.SubjectId }).IsUnique();
+        b.HasIndex(x => new { x.Provider, x.TenantId, x.ParticipantId }).IsUnique();
+        b.HasOne<Participant>().WithMany().HasForeignKey(x => x.ParticipantId).Restrict();
+    }
+}
+
+public sealed class TeamsConversationReferenceConfiguration : IEntityTypeConfiguration<TeamsConversationReference>
+{
+    public void Configure(EntityTypeBuilder<TeamsConversationReference> b)
+    {
+        b.ToTable("TeamsConversationReferences"); b.HasKey(x => x.Id);
+        b.Property(x => x.ServiceUrl).HasMaxLength(500); b.Property(x => x.ConversationId).HasMaxLength(500); b.Property(x => x.BotId).HasMaxLength(200); b.Property(x => x.UserId).HasMaxLength(200);
+        b.HasIndex(x => x.ParticipantExternalIdentityId).IsUnique().HasFilter("[IsActive] = 1");
+        b.HasIndex(x => new { x.TenantId, x.ConversationId }).IsUnique().HasFilter("[IsActive] = 1");
+        b.HasOne<ParticipantExternalIdentity>().WithMany().HasForeignKey(x => x.ParticipantExternalIdentityId).Restrict();
+    }
+}
+
+public sealed class TeamsChannelDestinationCandidateConfiguration : IEntityTypeConfiguration<TeamsChannelDestinationCandidate>
+{
+    public void Configure(EntityTypeBuilder<TeamsChannelDestinationCandidate> b)
+    {
+        b.ToTable("TeamsChannelDestinationCandidates"); b.HasKey(x=>x.Id);
+        b.Property(x=>x.ServiceUrl).HasMaxLength(500); b.Property(x=>x.ConversationId).HasMaxLength(500); b.Property(x=>x.TeamId).HasMaxLength(200); b.Property(x=>x.ChannelId).HasMaxLength(200); b.Property(x=>x.BotId).HasMaxLength(200);
+        b.HasIndex(x=>new{x.TenantId,x.ConversationId}).IsUnique();
+    }
+}
+
+public sealed class TeamsChannelDestinationAssignmentConfiguration : IEntityTypeConfiguration<TeamsChannelDestinationAssignment>
+{
+    public void Configure(EntityTypeBuilder<TeamsChannelDestinationAssignment> b)
+    {
+        b.ToTable("TeamsChannelDestinationAssignments",t=>t.HasCheckConstraint("CK_TeamsChannelDestinationAssignments_Key","[DestinationKey] IN ('QUEST_GENERAL_AUDIENCE','QUEST_MANAGER_AUDIENCE')")); b.HasKey(x=>x.DestinationKey); b.Property(x=>x.DestinationKey).HasMaxLength(40);
+        b.HasOne<TeamsChannelDestinationCandidate>().WithMany().HasForeignKey(x=>x.CandidateId).Restrict(); b.HasOne<Participant>().WithMany().HasForeignKey(x=>x.AssignedByParticipantId).Restrict();
+    }
+}
+
 public sealed class CycleConfiguration : IEntityTypeConfiguration<Cycle>
 {
     public void Configure(EntityTypeBuilder<Cycle> b)

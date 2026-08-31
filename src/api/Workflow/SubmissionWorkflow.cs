@@ -7,6 +7,8 @@ using PAS.AIQuestPortal.Api.Authentication;
 using PAS.AIQuestPortal.Api.Configuration;
 using PAS.AIQuestPortal.Api.Data;
 using PAS.AIQuestPortal.Api.Evidence;
+using PAS.AIQuestPortal.Api.Notifications;
+using Microsoft.Extensions.Options;
 
 namespace PAS.AIQuestPortal.Api.Workflow;
 
@@ -44,7 +46,7 @@ public sealed class WorkflowException(int status, string code, string message) :
 public interface ISubmissionPostCommitHook { Task AfterCommitAsync(Guid submissionId,CancellationToken ct); }
 public interface ISubmissionPreCommitHook { Task BeforeCommitAsync(Guid submissionId,CancellationToken ct); }
 public interface ISubmissionBeforeWriteTransactionHook { Task BeforeTransactionAsync(CancellationToken ct); }
-public sealed class SubmissionWorkflowService(QuestDbContext db, IQuestCurrentUser user, TimeProvider clock, EvidenceAttachmentValidator? attachmentValidator = null, IEvidenceBlobStore? blobStore = null, ILogger<SubmissionWorkflowService>? logger = null, ISubmissionPostCommitHook? postCommitHook = null, ISubmissionPreCommitHook? preCommitHook = null, ISubmissionBeforeWriteTransactionHook? beforeWriteTransactionHook = null)
+public sealed class SubmissionWorkflowService(QuestDbContext db, IQuestCurrentUser user, TimeProvider clock, EvidenceAttachmentValidator? attachmentValidator = null, IEvidenceBlobStore? blobStore = null, ILogger<SubmissionWorkflowService>? logger = null, ISubmissionPostCommitHook? postCommitHook = null, ISubmissionPreCommitHook? preCommitHook = null, ISubmissionBeforeWriteTransactionHook? beforeWriteTransactionHook = null, INotificationOutboxWriter? notificationWriter = null, IOptions<NotificationOptions>? notificationOptions = null)
 {
     public async Task<IReadOnlyList<EligibleChallengeView>> EligibleAsync(CancellationToken ct)
     {
@@ -98,8 +100,14 @@ public sealed class SubmissionWorkflowService(QuestDbContext db, IQuestCurrentUs
             await ValidateActiveMembership(challenge.CycleId, claimant, beneficiaries, ct);
             db.Submissions.Add(submission);
             db.SubmissionBeneficiaries.AddRange(beneficiaries.Select(x => new SubmissionBeneficiary { SubmissionId = submission.Id, ParticipantId = x, CycleId = challenge.CycleId, AddedAt = now, AddedByParticipantId = claimant }));
-            AddEvidence(submission.Id, claimant, now, request.Evidence); AddAttachments(submission.Id, claimant, now, attachments, blobKeys); AddEvent(submission.Id, "Submitted", null, SubmissionStatus.Submitted, request.Comment, claimant, now);
-            if(preCommitHook is not null)await preCommitHook.BeforeCommitAsync(submission.Id,ct);await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+            AddEvidence(submission.Id, claimant, now, request.Evidence); AddAttachments(submission.Id, claimant, now, attachments, blobKeys); SubmissionEvent submittedEvent = AddEvent(submission.Id, "Submitted", null, SubmissionStatus.Submitted, request.Comment, claimant, now);
+            if (NotificationsEnabled)
+            {
+                string claimantName = await db.Participants.Where(x => x.Id == claimant).Select(x => x.DisplayName).SingleAsync(ct);
+                notificationWriter!.Enqueue(submittedEvent.Id, NotificationEventType.SubmissionSubmitted, NotificationDestinations.Managers(), "Submission", submission.Id,
+                    new SubmissionSubmittedPayload(submission.Id, claimantName, challenge.Id, challenge.Name, task.Id, task.Name, beneficiaries.Length, now), now);
+            }
+            await db.SaveChangesAsync(ct); if(preCommitHook is not null)await preCommitHook.BeforeCommitAsync(submission.Id,ct); await tx.CommitAsync(ct);
         }
         catch { await Compensate(blobKeys); throw; }
         if(postCommitHook is not null)await postCommitHook.AfterCommitAsync(submission.Id,ct);return await Build(submission, ct);
@@ -126,8 +134,15 @@ public sealed class SubmissionWorkflowService(QuestDbContext db, IQuestCurrentUs
         submission.Comment = Clean(request.Comment); submission.Status = SubmissionStatus.Resubmitted; submission.LastUpdatedAt = now;
         SubmissionEvidence[] previousEvidence = await db.SubmissionEvidence.Where(x => x.SubmissionId == id && x.EvidenceKind != EvidenceKind.Attachment).ToArrayAsync(ct);
         db.SubmissionEvidence.RemoveRange(previousEvidence);
-        AddEvidence(id, claimant, now, request.Evidence); AddAttachments(id, claimant, now, attachments, blobKeys); AddEvent(id, "Resubmitted", SubmissionStatus.NeedsEvidence, SubmissionStatus.Resubmitted, request.Comment, claimant, now);
-        if(preCommitHook is not null)await preCommitHook.BeforeCommitAsync(submission.Id,ct);await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+        AddEvidence(id, claimant, now, request.Evidence); AddAttachments(id, claimant, now, attachments, blobKeys); SubmissionEvent resubmittedEvent = AddEvent(id, "Resubmitted", SubmissionStatus.NeedsEvidence, SubmissionStatus.Resubmitted, request.Comment, claimant, now);
+        if (NotificationsEnabled)
+        {
+            string claimantName = await db.Participants.Where(x => x.Id == claimant).Select(x => x.DisplayName).SingleAsync(ct);
+            int beneficiaryCount = await db.SubmissionBeneficiaries.CountAsync(x => x.SubmissionId == id, ct);
+            notificationWriter!.Enqueue(resubmittedEvent.Id, NotificationEventType.SubmissionResubmitted, NotificationDestinations.Managers(), "Submission", id,
+                new SubmissionResubmittedPayload(id, claimantName, challenge.Id, challenge.Name, task.Id, task.Name, beneficiaryCount, now), now);
+        }
+        await db.SaveChangesAsync(ct); if(preCommitHook is not null)await preCommitHook.BeforeCommitAsync(submission.Id,ct); await tx.CommitAsync(ct);
         }
         catch { await Compensate(blobKeys); throw; }
         if(postCommitHook is not null)await postCommitHook.AfterCommitAsync(submission.Id,ct);return await Build(submission, ct);
@@ -143,11 +158,38 @@ public sealed class SubmissionWorkflowService(QuestDbContext db, IQuestCurrentUs
         if (submission.Status is not (SubmissionStatus.Submitted or SubmissionStatus.Resubmitted or SubmissionStatus.UnderReview)) throw Conflict("InvalidSubmissionState", "This submission is not available for review.");
         if (request.Action is ReviewAction.NeedsEvidence or ReviewAction.Reject && string.IsNullOrWhiteSpace(request.Comment)) throw Bad("ManagerCommentRequired", "A manager comment is required.");
         if (submission.Status != SubmissionStatus.UnderReview) { SubmissionStatus from = submission.Status; submission.Status = SubmissionStatus.UnderReview; AddEvent(id, "UnderReview", from, SubmissionStatus.UnderReview, null, manager, now); }
-        if (request.Action == ReviewAction.NeedsEvidence) { submission.Status = SubmissionStatus.NeedsEvidence; AddEvent(id, "NeedsEvidence", SubmissionStatus.UnderReview, SubmissionStatus.NeedsEvidence, request.Comment, manager, now); }
-        else if (request.Action == ReviewAction.Reject) { submission.Status = SubmissionStatus.Rejected; AddEvent(id, "Rejected", SubmissionStatus.UnderReview, SubmissionStatus.Rejected, request.Comment, manager, now); }
-        else { await AddGrants(submission, manager, now, ct); submission.Status = SubmissionStatus.Approved; AddEvent(id, "Approved", SubmissionStatus.UnderReview, SubmissionStatus.Approved, request.Comment, manager, now); }
+        Challenge challenge = await db.Challenges.SingleAsync(x => x.Id == submission.ChallengeId, ct);
+        ChallengeTask task = await db.ChallengeTasks.SingleAsync(x => x.Id == submission.TaskId, ct);
+        if (request.Action == ReviewAction.NeedsEvidence)
+        {
+            submission.Status = SubmissionStatus.NeedsEvidence;
+            SubmissionEvent outcome = AddEvent(id, "NeedsEvidence", SubmissionStatus.UnderReview, SubmissionStatus.NeedsEvidence, request.Comment, manager, now);
+            if (NotificationsEnabled)
+                notificationWriter!.Enqueue(outcome.Id, NotificationEventType.SubmissionNeedsEvidence, NotificationDestinations.Participant(submission.ClaimantId), "Submission", id,
+                    new SubmissionNeedsEvidencePayload(id, challenge.Id, challenge.Name, task.Id, task.Name, await EffectiveDeadline(challenge, submission.ClaimantId, ct), Clean(request.Comment)), now);
+        }
+        else if (request.Action == ReviewAction.Reject)
+        {
+            submission.Status = SubmissionStatus.Rejected;
+            SubmissionEvent outcome = AddEvent(id, "Rejected", SubmissionStatus.UnderReview, SubmissionStatus.Rejected, request.Comment, manager, now);
+            if (NotificationsEnabled)
+                notificationWriter!.Enqueue(outcome.Id, NotificationEventType.SubmissionRejected, NotificationDestinations.Participant(submission.ClaimantId), "Submission", id,
+                    new SubmissionRejectedPayload(id, challenge.Id, challenge.Name, task.Id, task.Name, Clean(request.Comment), now), now);
+        }
+        else
+        {
+            IReadOnlyList<XPEntry> grants = await AddGrants(submission, manager, now, ct);
+            submission.Status = SubmissionStatus.Approved;
+            SubmissionEvent outcome = AddEvent(id, "Approved", SubmissionStatus.UnderReview, SubmissionStatus.Approved, request.Comment, manager, now);
+            if (NotificationsEnabled)
+                foreach (XPEntry grant in grants.GroupBy(x => x.ParticipantId).Select(x => x.Single()))
+                    notificationWriter!.Enqueue(outcome.Id, NotificationEventType.SubmissionApproved, NotificationDestinations.Participant(grant.ParticipantId), "Submission", id,
+                        new SubmissionApprovedPayload(id, challenge.Id, challenge.Name, task.Id, task.Name, submission.CycleId, grant.Amount, now), now);
+        }
         submission.ReviewerComment = Clean(request.Comment); submission.LastUpdatedAt = now;
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return await Build(submission, ct);
+        await db.SaveChangesAsync(ct);
+        if (preCommitHook is not null) await preCommitHook.BeforeCommitAsync(submission.Id, ct);
+        await tx.CommitAsync(ct); return await Build(submission, ct);
     }
 
     public async Task<CorrectionView> CorrectAsync(Guid entryId, CorrectionRequest request, CancellationToken ct)
@@ -190,17 +232,19 @@ public sealed class SubmissionWorkflowService(QuestDbContext db, IQuestCurrentUs
         if (result < 0) throw Conflict("CorrectionConflict", "Another manager is correcting this award; refresh and try again.");
     }
 
-    private async Task AddGrants(Submission submission, Guid manager, DateTimeOffset now, CancellationToken ct)
+    private async Task<IReadOnlyList<XPEntry>> AddGrants(Submission submission, Guid manager, DateTimeOffset now, CancellationToken ct)
     {
         ChallengeTask task = await db.ChallengeTasks.SingleAsync(x => x.Id == submission.TaskId, ct);
         ValidateEvidence(task, (await db.SubmissionEvidence.AsNoTracking().Where(x => x.SubmissionId == submission.Id).ToListAsync(ct)).Select(ToItem).ToArray());
         Guid[] beneficiaries = await db.SubmissionBeneficiaries.Where(x => x.SubmissionId == submission.Id).Select(x => x.ParticipantId).ToArrayAsync(ct);
         if (beneficiaries.Length == 0) throw Conflict("MissingBeneficiaries", "The submission has no beneficiaries.");
-        foreach (Guid participant in beneficiaries)
+        var grants = new List<XPEntry>();
+        foreach (Guid participant in beneficiaries.Distinct())
         {
             bool exists = await db.XPEntries.AnyAsync(x => x.SubmissionId == submission.Id && x.ParticipantId == participant && x.EntryType == XPEntryType.Grant && x.SourceType == XPSourceType.TaskApproval, ct);
-            if (!exists) db.XPEntries.Add(new XPEntry { Id = Guid.NewGuid(), ParticipantId = participant, CycleId = submission.CycleId, Amount = task.XP, EntryType = XPEntryType.Grant, SourceType = XPSourceType.TaskApproval, ChallengeId = submission.ChallengeId, TaskId = submission.TaskId, SubmissionId = submission.Id, ChallengeParticipationId = submission.ChallengeParticipationId, Reason = "Task submission approved", AwardedByParticipantId = manager, AwardedAt = now });
+            if (!exists) { var grant = new XPEntry { Id = Guid.NewGuid(), ParticipantId = participant, CycleId = submission.CycleId, Amount = task.XP, EntryType = XPEntryType.Grant, SourceType = XPSourceType.TaskApproval, ChallengeId = submission.ChallengeId, TaskId = submission.TaskId, SubmissionId = submission.Id, ChallengeParticipationId = submission.ChallengeParticipationId, Reason = "Task submission approved", AwardedByParticipantId = manager, AwardedAt = now }; db.XPEntries.Add(grant); grants.Add(grant); }
         }
+        return grants;
     }
 
     private async Task<Guid?> ValidateBeneficiaries(Challenge challenge, ChallengeTask task, Guid claimant, Guid? participationId, Guid[] beneficiaries, CancellationToken ct)
@@ -305,7 +349,7 @@ public sealed class SubmissionWorkflowService(QuestDbContext db, IQuestCurrentUs
             db.SubmissionEvidence.Add(new SubmissionEvidence { Id = x.EvidenceId, SubmissionId = submission, EvidenceKind = EvidenceKind.Attachment, StorageAccount = "configured", Container = AzureEvidenceBlobStore.ContainerName, BlobKey = blobKeys[i], OriginalFileName = x.OriginalFileName, MimeType = x.MimeType, SizeBytes = x.SizeBytes, Description = x.Label, ProvidedByParticipantId = actor, CreatedAt = now });
         }
     }
-    private void AddEvent(Guid submission, string type, SubmissionStatus? from, SubmissionStatus to, string? comment, Guid actor, DateTimeOffset now) => db.SubmissionEvents.Add(new SubmissionEvent { Id = Guid.NewGuid(), SubmissionId = submission, EventType = type, FromStatus = from, ToStatus = to, Comment = Clean(comment), ActorId = actor, OccurredAt = now });
+    private SubmissionEvent AddEvent(Guid submission, string type, SubmissionStatus? from, SubmissionStatus to, string? comment, Guid actor, DateTimeOffset now) { var item = new SubmissionEvent { Id = Guid.NewGuid(), SubmissionId = submission, EventType = type, FromStatus = from, ToStatus = to, Comment = Clean(comment), ActorId = actor, OccurredAt = now }; db.SubmissionEvents.Add(item); return item; }
     private static EvidenceItem ToItem(SubmissionEvidence x) => x.EvidenceKind == EvidenceKind.Attachment
         ? new(x.EvidenceKind, x.Description ?? "Attachment", Id: x.Id, OriginalFileName: x.OriginalFileName, MimeType: x.MimeType, SizeBytes: x.SizeBytes, CreatedAt: x.CreatedAt, ContentUrl: $"/api/submission-evidence/{x.Id}/content")
         : new(x.EvidenceKind, x.Description ?? "Evidence", x.TextValue ?? x.LinkUrl, x.Id, CreatedAt: x.CreatedAt);
@@ -382,6 +426,7 @@ public sealed class SubmissionWorkflowService(QuestDbContext db, IQuestCurrentUs
     private static int EventOrder(SubmissionStatus status) => status switch { SubmissionStatus.Submitted => 0, SubmissionStatus.UnderReview => 1, SubmissionStatus.NeedsEvidence => 2, SubmissionStatus.Resubmitted => 3, SubmissionStatus.Approved => 4, SubmissionStatus.Rejected => 4, _ => 9 };
     private static void CheckVersion(Submission s, string value) { if (!DateTimeOffset.TryParse(value, out DateTimeOffset parsed) || parsed != s.LastUpdatedAt) throw Conflict("SubmissionVersionConflict", "The submission changed; refresh and retry."); }
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private bool NotificationsEnabled => notificationWriter is not null && notificationOptions?.Value.Enabled == true;
     private static WorkflowException Bad(string code, string message) => new(400, code, message);
     private static WorkflowException Forbidden(string code = "Forbidden", string message = "This identity cannot perform this action.") => new(403, code, message);
     private static WorkflowException NotFound(string code, string message) => new(404, code, message);
