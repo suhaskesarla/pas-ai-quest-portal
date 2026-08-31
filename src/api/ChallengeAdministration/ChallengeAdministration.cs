@@ -3,6 +3,8 @@ using PAS.AIQuestPortal.Api.Authentication;
 using PAS.AIQuestPortal.Api.Configuration;
 using PAS.AIQuestPortal.Api.Data;
 using PAS.AIQuestPortal.Api.Workflow;
+using PAS.AIQuestPortal.Api.Notifications;
+using Microsoft.Extensions.Options;
 
 namespace PAS.AIQuestPortal.Api.ChallengeAdministration;
 
@@ -17,7 +19,7 @@ public sealed record ChallengeTaskView(Guid Id, string Name, string? Description
 public sealed record ChallengePolicyView(FormationMode FormationMode, int MinMembers, int MaxMembers, bool AllowSolo, DateTimeOffset? FormationDeadline, bool LockAfterStart);
 public sealed record ManagerChallengeView(Guid Id, string Version, Guid CycleId, string CycleCode, string CycleName, string Name, string? Description, string? Category, ChallengeStatus Status, DateTimeOffset OpenAt, DateTimeOffset DueAt, DateTimeOffset CloseAt, string? HeroImageReference, IReadOnlyList<ChallengeTaskView> Tasks, ChallengePolicyView? ParticipationPolicy);
 
-public sealed class ChallengeAdministrationService(QuestDbContext db, IQuestCurrentUser currentUser, TimeProvider clock)
+public sealed class ChallengeAdministrationService(QuestDbContext db, IQuestCurrentUser currentUser, TimeProvider clock, INotificationOutboxWriter? notificationWriter = null, IOptions<NotificationOptions>? notificationOptions = null)
 {
     private static readonly ScoringMode[] SupportedScoring = [ScoringMode.Individual, ScoringMode.WholeTeam, ScoringMode.ClaimantSelectsBeneficiaries];
     private static readonly EvidenceRequirement[] SupportedEvidence = [EvidenceRequirement.None, EvidenceRequirement.Text, EvidenceRequirement.Link, EvidenceRequirement.Attachment, EvidenceRequirement.Multiple];
@@ -75,7 +77,15 @@ public sealed class ChallengeAdministrationService(QuestDbContext db, IQuestCurr
         if (challenge.Status != ChallengeStatus.Draft) throw Conflict("InvalidChallengeTransition", "Only a Draft challenge can be published."); CheckVersion(challenge, request.Version);
         ChallengeTask[] tasks = await db.ChallengeTasks.AsNoTracking().Where(x => x.ChallengeId == id).OrderBy(x => x.SortOrder).ToArrayAsync(ct); ChallengeTeamPolicy? policy = await db.ChallengeTeamPolicies.AsNoTracking().SingleOrDefaultAsync(x => x.ChallengeId == id, ct);
         await ValidateAggregate(challenge.CycleId, challenge.Name, challenge.OpenAt, challenge.DueAt, challenge.CloseAt, tasks.Select(x => new ChallengeTaskWrite(x.Id, x.Name, x.Description, x.XP, x.ScoringMode, x.EvidenceRequirement, x.SortOrder)).ToArray(), policy is null ? null : new(policy.FormationMode, policy.MinMembers, policy.MaxMembers, policy.AllowSolo, policy.FormationDeadline, policy.LockAfterStart), true, ct);
-        challenge.Status = ChallengeStatus.Open; await SaveConflict(ct); return await Build(challenge, ct);
+        challenge.Status = ChallengeStatus.Open;
+        if (NotificationsEnabled)
+        {
+            Guid eventId = Guid.NewGuid();
+            notificationWriter!.Enqueue(eventId, NotificationEventType.ChallengePublished, NotificationDestinations.General(), "Challenge", challenge.Id,
+                new ChallengePublishedPayload(challenge.Id, challenge.Name, Truncate(challenge.Description, 240), challenge.OpenAt, challenge.DueAt, challenge.CloseAt,
+                    tasks.Select(x => new NotificationTaskSummary(x.Name, x.XP)).ToArray()), clock.GetUtcNow());
+        }
+        await SaveConflict(ct); return await Build(challenge, ct);
     }
 
     private async Task ValidateAggregate(Guid cycleId, string name, DateTimeOffset openAt, DateTimeOffset dueAt, DateTimeOffset closeAt, IReadOnlyList<ChallengeTaskWrite>? tasks, ChallengePolicyWrite? policy, bool publishing, CancellationToken ct)
@@ -96,6 +106,8 @@ public sealed class ChallengeAdministrationService(QuestDbContext db, IQuestCurr
     private static void Apply(ChallengeTask task, ChallengeTaskWrite item) { task.Name = item.Name.Trim(); task.Description = Clean(item.Description); task.XP = item.XP; task.ScoringMode = item.ScoringMode; task.EvidenceRequirement = item.EvidenceRequirement; task.CustomEvidenceRequirement = null; task.SortOrder = item.SortOrder; }
     private static void Apply(ChallengeTeamPolicy policy, ChallengePolicyWrite item) { policy.FormationMode = item.FormationMode; policy.MinMembers = item.MinMembers; policy.MaxMembers = item.MaxMembers; policy.AllowSolo = item.AllowSolo; policy.FormationDeadline = item.FormationDeadline; policy.LockAfterStart = item.LockAfterStart; }
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private bool NotificationsEnabled => notificationWriter is not null && notificationOptions?.Value.Enabled == true;
+    private static string? Truncate(string? value, int max) => string.IsNullOrWhiteSpace(value) ? null : value.Length <= max ? value : value[..max];
     private static DateTimeOffset NormalizeDate(DateTimeOffset value) { long ticks = value.UtcTicks - value.UtcTicks % TimeSpan.TicksPerMillisecond; return new DateTimeOffset(ticks, TimeSpan.Zero); }
     private static DateTimeOffset PreserveDate(DateTimeOffset persisted, DateTimeOffset incoming) => NormalizeDate(persisted) == NormalizeDate(incoming) ? persisted : NormalizeDate(incoming);
     private Guid Manager() => currentUser.Identity is { IsAuthenticated: true, ParticipantId: Guid id } identity && identity.Roles.Contains(QuestRoles.Manager, StringComparer.Ordinal) ? id : throw new WorkflowException(403, "Forbidden", "Manager authorization is required.");

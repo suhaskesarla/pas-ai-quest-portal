@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PAS.AIQuestPortal.Api.Data;
 
@@ -11,9 +12,11 @@ using PAS.AIQuestPortal.Api.Data;
 namespace PAS.AIQuestPortal.Api.Data.Migrations
 {
     [DbContext(typeof(QuestDbContext))]
-    partial class QuestDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260830100636_AddNotificationFoundation")]
+    partial class AddNotificationFoundation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -843,46 +846,6 @@ namespace PAS.AIQuestPortal.Api.Data.Migrations
                         });
                 });
 
-            modelBuilder.Entity("PAS.AIQuestPortal.Api.Data.ParticipantExternalIdentity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("ParticipantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<Guid>("SubjectId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("VerifiedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Provider", "TenantId", "ParticipantId")
-                        .IsUnique();
-
-                    b.HasIndex("Provider", "TenantId", "SubjectId")
-                        .IsUnique();
-
-                    b.ToTable("ParticipantExternalIdentities", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_ParticipantExternalIdentities_Provider", "[Provider] = 'Entra'");
-                        });
-                });
-
             modelBuilder.Entity("PAS.AIQuestPortal.Api.Data.RaidEntitlement", b =>
                 {
                     b.Property<Guid>("ParticipantId")
@@ -1181,133 +1144,6 @@ namespace PAS.AIQuestPortal.Api.Data.Migrations
                         {
                             t.HasCheckConstraint("CK_SubmissionEvidence_Shape", "([EvidenceKind] = 'Text' AND [TextValue] IS NOT NULL AND [LinkUrl] IS NULL AND [BlobKey] IS NULL) OR ([EvidenceKind] = 'Link' AND [LinkUrl] IS NOT NULL AND [TextValue] IS NULL AND [BlobKey] IS NULL) OR ([EvidenceKind] = 'Attachment' AND [StorageAccount] IS NOT NULL AND [Container] IS NOT NULL AND [BlobKey] IS NOT NULL AND [OriginalFileName] IS NOT NULL AND [MimeType] IS NOT NULL AND [SizeBytes] IS NOT NULL AND [SizeBytes] >= 0 AND [TextValue] IS NULL AND [LinkUrl] IS NULL)");
                         });
-                });
-
-            modelBuilder.Entity("PAS.AIQuestPortal.Api.Data.TeamsChannelDestinationAssignment", b =>
-                {
-                    b.Property<string>("DestinationKey")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<DateTimeOffset>("AssignedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("AssignedByParticipantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("CandidateId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("DestinationKey");
-
-                    b.HasIndex("AssignedByParticipantId");
-
-                    b.HasIndex("CandidateId");
-
-                    b.ToTable("TeamsChannelDestinationAssignments", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_TeamsChannelDestinationAssignments_Key", "[DestinationKey] IN ('QUEST_GENERAL_AUDIENCE','QUEST_MANAGER_AUDIENCE')");
-                        });
-                });
-
-            modelBuilder.Entity("PAS.AIQuestPortal.Api.Data.TeamsChannelDestinationCandidate", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("BotId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTimeOffset>("CapturedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ChannelId")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("ConversationId")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("ServiceUrl")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("TeamId")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "ConversationId")
-                        .IsUnique();
-
-                    b.ToTable("TeamsChannelDestinationCandidates", (string)null);
-                });
-
-            modelBuilder.Entity("PAS.AIQuestPortal.Api.Data.TeamsConversationReference", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("BotId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("ConversationId")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid>("ParticipantExternalIdentityId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ServiceUrl")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ParticipantExternalIdentityId")
-                        .IsUnique()
-                        .HasFilter("[IsActive] = 1");
-
-                    b.HasIndex("TenantId", "ConversationId")
-                        .IsUnique()
-                        .HasFilter("[IsActive] = 1");
-
-                    b.ToTable("TeamsConversationReferences", (string)null);
                 });
 
             modelBuilder.Entity("PAS.AIQuestPortal.Api.Data.XPEntry", b =>
@@ -1835,15 +1671,6 @@ namespace PAS.AIQuestPortal.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.NoAction);
                 });
 
-            modelBuilder.Entity("PAS.AIQuestPortal.Api.Data.ParticipantExternalIdentity", b =>
-                {
-                    b.HasOne("PAS.AIQuestPortal.Api.Data.Participant", null)
-                        .WithMany()
-                        .HasForeignKey("ParticipantId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("PAS.AIQuestPortal.Api.Data.RaidEntitlement", b =>
                 {
                     b.HasOne("PAS.AIQuestPortal.Api.Data.CycleParticipant", null)
@@ -1955,30 +1782,6 @@ namespace PAS.AIQuestPortal.Api.Data.Migrations
                     b.HasOne("PAS.AIQuestPortal.Api.Data.Submission", null)
                         .WithMany()
                         .HasForeignKey("SubmissionId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("PAS.AIQuestPortal.Api.Data.TeamsChannelDestinationAssignment", b =>
-                {
-                    b.HasOne("PAS.AIQuestPortal.Api.Data.Participant", null)
-                        .WithMany()
-                        .HasForeignKey("AssignedByParticipantId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("PAS.AIQuestPortal.Api.Data.TeamsChannelDestinationCandidate", null)
-                        .WithMany()
-                        .HasForeignKey("CandidateId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("PAS.AIQuestPortal.Api.Data.TeamsConversationReference", b =>
-                {
-                    b.HasOne("PAS.AIQuestPortal.Api.Data.ParticipantExternalIdentity", null)
-                        .WithMany()
-                        .HasForeignKey("ParticipantExternalIdentityId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
                 });

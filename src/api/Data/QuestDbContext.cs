@@ -34,6 +34,11 @@ public sealed class QuestDbContext(DbContextOptions<QuestDbContext> options) : D
     public DbSet<HistoricalImportSourceRow> HistoricalImportSourceRows => Set<HistoricalImportSourceRow>();
     public DbSet<HistoricalImportArtifact> HistoricalImportArtifacts => Set<HistoricalImportArtifact>();
     public DbSet<HistoricalImportObservation> HistoricalImportObservations => Set<HistoricalImportObservation>();
+    public DbSet<NotificationOutbox> NotificationOutbox => Set<NotificationOutbox>();
+    public DbSet<ParticipantExternalIdentity> ParticipantExternalIdentities => Set<ParticipantExternalIdentity>();
+    public DbSet<TeamsConversationReference> TeamsConversationReferences => Set<TeamsConversationReference>();
+    public DbSet<TeamsChannelDestinationCandidate> TeamsChannelDestinationCandidates => Set<TeamsChannelDestinationCandidate>();
+    public DbSet<TeamsChannelDestinationAssignment> TeamsChannelDestinationAssignments => Set<TeamsChannelDestinationAssignment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -69,6 +74,11 @@ public sealed class QuestDbContext(DbContextOptions<QuestDbContext> options) : D
 
         if (ChangeTracker.Entries<CycleParticipant>().Any(x => x.State == EntityState.Deleted))
             throw new InvalidOperationException("CycleParticipant enrollment is durable and cannot be deleted.");
+
+        string[] immutableNotificationProperties = [nameof(PAS.AIQuestPortal.Api.Data.NotificationOutbox.EventId), nameof(PAS.AIQuestPortal.Api.Data.NotificationOutbox.EventType), nameof(PAS.AIQuestPortal.Api.Data.NotificationOutbox.DestinationType), nameof(PAS.AIQuestPortal.Api.Data.NotificationOutbox.DestinationKey), nameof(PAS.AIQuestPortal.Api.Data.NotificationOutbox.RecipientParticipantId), nameof(PAS.AIQuestPortal.Api.Data.NotificationOutbox.AggregateType), nameof(PAS.AIQuestPortal.Api.Data.NotificationOutbox.AggregateId), nameof(PAS.AIQuestPortal.Api.Data.NotificationOutbox.PayloadVersion), nameof(PAS.AIQuestPortal.Api.Data.NotificationOutbox.PayloadJson), nameof(PAS.AIQuestPortal.Api.Data.NotificationOutbox.CreatedAt)];
+        foreach (EntityEntry<NotificationOutbox> entry in ChangeTracker.Entries<NotificationOutbox>().Where(x => x.State == EntityState.Modified))
+            if (immutableNotificationProperties.Any(property => entry.Property(property).IsModified))
+                throw new InvalidOperationException("Notification outbox event, destination, aggregate and payload semantics are immutable after insertion.");
 
         foreach (EntityEntry<CycleParticipant> enrollment in ChangeTracker.Entries<CycleParticipant>().Where(x => x.State == EntityState.Added))
         {

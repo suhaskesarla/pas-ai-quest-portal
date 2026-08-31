@@ -2,6 +2,79 @@ namespace PAS.AIQuestPortal.Api.Data;
 
 public interface IAppendOnly;
 
+public sealed class NotificationOutbox
+{
+    public Guid Id { get; set; }
+    public Guid EventId { get; set; }
+    public string EventType { get; set; } = string.Empty;
+    public string DestinationType { get; set; } = string.Empty;
+    public string DestinationKey { get; set; } = string.Empty;
+    public Guid? RecipientParticipantId { get; set; }
+    public string AggregateType { get; set; } = string.Empty;
+    public Guid AggregateId { get; set; }
+    public int PayloadVersion { get; set; }
+    public string PayloadJson { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string? DeliveryPhase { get; set; }
+    public int AttemptCount { get; set; }
+    public DateTimeOffset NextAttemptAt { get; set; }
+    public Guid? LeaseId { get; set; }
+    public DateTimeOffset? LeaseExpiresAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? LastAttemptAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public string? ProviderMessageId { get; set; }
+    public string? LastErrorCode { get; set; }
+    public string? LastErrorSummary { get; set; }
+    public string? TerminalReason { get; set; }
+}
+
+public sealed class ParticipantExternalIdentity
+{
+    public Guid Id { get; set; }
+    public Guid ParticipantId { get; set; }
+    public string Provider { get; set; } = string.Empty;
+    public Guid TenantId { get; set; }
+    public Guid SubjectId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? VerifiedAt { get; set; }
+}
+
+public sealed class TeamsConversationReference
+{
+    public Guid Id { get; set; }
+    public Guid ParticipantExternalIdentityId { get; set; }
+    public Guid TenantId { get; set; }
+    public string ServiceUrl { get; set; } = string.Empty;
+    public string ConversationId { get; set; } = string.Empty;
+    public string BotId { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class TeamsChannelDestinationCandidate
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public string ServiceUrl { get; set; } = string.Empty;
+    public string ConversationId { get; set; } = string.Empty;
+    public string? TeamId { get; set; }
+    public string? ChannelId { get; set; }
+    public string BotId { get; set; } = string.Empty;
+    public DateTimeOffset CapturedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class TeamsChannelDestinationAssignment
+{
+    public string DestinationKey { get; set; } = string.Empty;
+    public Guid CandidateId { get; set; }
+    public Guid AssignedByParticipantId { get; set; }
+    public DateTimeOffset AssignedAt { get; set; }
+}
+
 public enum CycleStatus { Active, Closing, Finalised }
 public enum CycleParticipantStatus { Active, Withdrawn, Inactive }
 public enum ChallengeStatus { Draft, Published, Open, Closed, Archived }

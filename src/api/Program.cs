@@ -16,6 +16,7 @@ using PAS.AIQuestPortal.Api.ChallengeAdministration;
 using PAS.AIQuestPortal.Api.ManualAwards;
 using PAS.AIQuestPortal.Api.CycleAdministration;
 using PAS.AIQuestPortal.Api.RaidAdministration;
+using PAS.AIQuestPortal.Api.Notifications;
 
 if (args.Length > 0 && string.Equals(args[0], "historical-import", StringComparison.OrdinalIgnoreCase))
 {
@@ -39,6 +40,8 @@ builder.Services.AddChallengeAdministration();
 builder.Services.AddManualAwards();
 builder.Services.AddCycleAdministration();
 builder.Services.AddRaidAdministration();
+builder.Services.AddNotificationFoundation(builder.Configuration);
+builder.Services.AddLeaderboardAnnouncements();
 
 builder.Services.AddCors(options =>
 {
@@ -74,6 +77,7 @@ builder.Services
     .AddCheck<BlobStorageHealthCheck>("blob-storage", tags: ["ready"]);
 
 var app = builder.Build();
+_ = app.Services.GetRequiredService<IOptions<NotificationOptions>>().Value;
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
@@ -101,6 +105,10 @@ app.MapChallengeAdministration();
 app.MapManualAwards();
 app.MapCycleAdministration();
 app.MapRaidAdministration();
+app.MapNotificationDiagnostics();
+app.MapLeaderboardAnnouncements();
+app.MapTeamsBotActivityCapture();
+app.MapTeamsProvisioning();
 
 app.Run();
 return 0;
