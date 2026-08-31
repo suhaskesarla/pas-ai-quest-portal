@@ -40,3 +40,4 @@ export type ManualAwardOptions = {
 }
 export type ManualAwardCommand = { requestId: string; cycleId: string; participantId: string; awardCategoryId: string; amount: number; reason: string }
 export type ManualAwardResponse = { id: string; requestId: string; participantId: string; cycleId: string; amount: number; entryType: 'Grant'; sourceType: 'ManualAward'; awardCategory: ManualAwardOptions['categories'][number]; reason: string; awardedByParticipantId: string; awardedAt: string }
+export type LeaderboardAnnouncementResponse = { requestId: string; eventId: string; cycleId: string; status: string; createdAt: string; replay: boolean }

@@ -19,11 +19,48 @@ const summary: ScoresheetSummary = { cycle: cycles.cycles[0], rows: [
 ] }
 const detail: ScoresheetDetail = { cycle: cycles.cycles[0], participant: { participantId: 'p1', displayName: 'Avery Demo', participantStatus: 'Active' }, bySource: summary.rows[0].bySource, byEntryType: summary.rows[0].byEntryType, totalXp: 10, items: [item('grant-1', 25), item('reverse-1', -25)], nextCursor: null }
 const awardOptions = { cycle: { id: 'aug', code: 'AUG', name: 'August Quest', status: 'Active' as const }, participants: [{ participantId: 'p1', displayName: 'Avery Demo', participantStatus: 'Active' as const }], categories: [{ awardCategoryId: 'cat-1', code: 'EARLY', name: 'Early Bird' }] }
-function api(overrides: Partial<ScoresheetApi> = {}): ScoresheetApi { return { getReportingCycles: vi.fn().mockResolvedValue(cycles), getScoresheet: vi.fn().mockResolvedValue(summary), getParticipant: vi.fn().mockResolvedValue(detail), correctXp: vi.fn().mockResolvedValue({ id: 'adjust-1', originalEntryId: 'grant-1', participantId: 'p1', cycleId: 'aug', amount: -5, entryType: 'Reversal', reason: 'Correction reason', awardedByParticipantId: 'm1', awardedAt: '2026-08-21T00:00:00Z' }), getManualAwardOptions: vi.fn().mockResolvedValue(awardOptions), createManualAward: vi.fn().mockResolvedValue({ id: 'request-1', requestId: 'request-1', participantId: 'p1', cycleId: 'aug', amount: 5, entryType: 'Grant', sourceType: 'ManualAward', awardCategory: awardOptions.categories[0], reason: 'Award reason', awardedByParticipantId: 'm1', awardedAt: '2026-08-21T00:00:00Z' }), ...overrides } }
+function api(overrides: Partial<ScoresheetApi> = {}): ScoresheetApi { return { getReportingCycles: vi.fn().mockResolvedValue(cycles), getScoresheet: vi.fn().mockResolvedValue(summary), getParticipant: vi.fn().mockResolvedValue(detail), correctXp: vi.fn().mockResolvedValue({ id: 'adjust-1', originalEntryId: 'grant-1', participantId: 'p1', cycleId: 'aug', amount: -5, entryType: 'Reversal', reason: 'Correction reason', awardedByParticipantId: 'm1', awardedAt: '2026-08-21T00:00:00Z' }), getManualAwardOptions: vi.fn().mockResolvedValue(awardOptions), createManualAward: vi.fn().mockResolvedValue({ id: 'request-1', requestId: 'request-1', participantId: 'p1', cycleId: 'aug', amount: 5, entryType: 'Grant', sourceType: 'ManualAward', awardCategory: awardOptions.categories[0], reason: 'Award reason', awardedByParticipantId: 'm1', awardedAt: '2026-08-21T00:00:00Z' }), postLeaderboard: vi.fn().mockResolvedValue({ requestId: 'announce-1', eventId: 'event-1', cycleId: 'aug', status: 'Pending', createdAt: '2026-08-21T00:00:00Z', replay: false }), ...overrides } }
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (reason?: unknown) => void; const promise = new Promise<T>((pass, fail) => { resolve = pass; reject = fail }); return { promise, resolve, reject } }
 async function prepareAward(user: ReturnType<typeof userEvent.setup>, amount = '5', reason = 'Great contribution') { await user.click(await screen.findByRole('button', { name: 'Award XP' })); await screen.findByRole('option', { name: 'Avery Demo' }); await user.selectOptions(screen.getByLabelText('Award participant'), 'p1'); await user.selectOptions(screen.getByLabelText('Award category'), 'cat-1'); await user.type(screen.getByLabelText('Award XP amount'), amount); await user.type(screen.getByLabelText('Manual Award reason'), reason) }
 
 describe('manager Scoresheet', () => {
+  it('posts only cycle context and a server-generated requestId, retaining it for retry', async () => {
+    const post = vi.fn().mockRejectedValueOnce(new ScoresheetApiError(503)).mockResolvedValueOnce({ requestId: 'announce-1', eventId: 'event-1', cycleId: 'aug', status: 'Pending', createdAt: '2026-08-21T00:00:00Z', replay: true })
+    const user = userEvent.setup(); render(<ManagerScoresheet api={api({ postLeaderboard: post })} newRequestId={() => 'announce-1'} />)
+    await user.click(await screen.findByRole('button', { name: 'Post leaderboard to Teams' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('same request identifier')
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(post).toHaveBeenNthCalledWith(1, 'aug', 'announce-1'); expect(post).toHaveBeenNthCalledWith(2, 'aug', 'announce-1')
+    expect(await screen.findByRole('status')).toHaveTextContent('Queued for notification')
+  })
+
+  it('keeps cycle-bound pending announcement intent and ignores late responses from another cycle', async () => {
+    const august = deferred<Awaited<ReturnType<ScoresheetApi['postLeaderboard']>>>()
+    const post = vi.fn()
+      .mockReturnValueOnce(august.promise)
+      .mockResolvedValueOnce({ requestId: 'july-1', eventId: 'event-july', cycleId: 'jul', status: 'Pending', createdAt: '2026-08-21T00:00:00Z', replay: false })
+      .mockRejectedValueOnce(new ScoresheetApiError(503))
+      .mockResolvedValueOnce({ requestId: 'august-2', eventId: 'event-august-2', cycleId: 'aug', status: 'Pending', createdAt: '2026-08-21T00:00:00Z', replay: false })
+    const ids = vi.fn().mockReturnValueOnce('august-1').mockReturnValueOnce('july-1').mockReturnValueOnce('august-2')
+    const user = userEvent.setup(); render(<ManagerScoresheet api={api({ postLeaderboard: post })} newRequestId={ids} />)
+    await user.click(await screen.findByRole('button', { name: 'Post leaderboard to Teams' })); expect(screen.getByRole('button', { name: 'Queueing…' })).toBeDisabled()
+    await user.selectOptions(screen.getByLabelText('Scoresheet reporting cycle'), 'jul'); await user.click(await screen.findByRole('button', { name: 'Post leaderboard to Teams' })); expect(await screen.findByText('Queued for notification.')).toBeInTheDocument()
+    august.reject(new ScoresheetApiError(503)); await waitFor(() => expect(post).toHaveBeenCalledTimes(2)); expect(screen.queryByRole('alert')).not.toBeInTheDocument(); expect(screen.getByText('Queued for notification.')).toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText('Scoresheet reporting cycle'), 'aug'); expect(await screen.findByRole('alert')).toHaveTextContent('same request identifier')
+    await user.click(screen.getByRole('button', { name: 'Retry' })); await waitFor(() => expect(post).toHaveBeenNthCalledWith(3, 'aug', 'august-1'))
+    await user.click(screen.getByRole('button', { name: 'Abandon and start new announcement' })); await waitFor(() => expect(post).toHaveBeenNthCalledWith(4, 'aug', 'august-2'))
+  })
+
+  it('uses a new requestId only for an explicit second post and handles privacy-disabled configuration', async () => {
+    const ids = vi.fn().mockReturnValueOnce('announce-1').mockReturnValueOnce('announce-2')
+    const post = vi.fn().mockResolvedValue({ requestId: 'announce-1', eventId: 'event-1', cycleId: 'aug', status: 'Pending', createdAt: '2026-08-21T00:00:00Z', replay: false })
+    const user = userEvent.setup(); render(<ManagerScoresheet api={api({ postLeaderboard: post })} newRequestId={ids} />)
+    await user.click(await screen.findByRole('button', { name: 'Post leaderboard to Teams' })); await screen.findByText('Queued for notification.')
+    await user.click(screen.getByRole('button', { name: 'Post leaderboard again' }))
+    expect(post).toHaveBeenNthCalledWith(1, 'aug', 'announce-1'); expect(post).toHaveBeenNthCalledWith(2, 'aug', 'announce-2')
+    cleanup(); render(<ManagerScoresheet api={api({ postLeaderboard: vi.fn().mockRejectedValue(new ScoresheetApiError(409, 'Disabled', 'RealUserLeaderboardDisabled')) })} newRequestId={() => 'announce-3'} />)
+    await user.click(await screen.findByRole('button', { name: 'Post leaderboard to Teams' })); expect(await screen.findByRole('alert')).toHaveTextContent('privacy approval')
+  })
   it('uses the default cycle, switches cycles, and renders every status and API total including zero', async () => {
     const service = api(); const user = userEvent.setup(); render(<ManagerScoresheet api={service} />)
     const table = await screen.findByRole('table'); expect(service.getScoresheet).toHaveBeenCalledWith('aug')
@@ -172,6 +209,6 @@ describe('manager Scoresheet', () => {
 
   it('refreshes open detail from page one, replaces later pages, refreshes summary, then creates a new requestId', async () => {
     const ids = vi.fn().mockReturnValueOnce('request-1').mockReturnValueOnce('request-2'); const summaryRefresh = deferred<ScoresheetSummary>(); const getScoresheet = vi.fn().mockResolvedValueOnce(summary).mockReturnValueOnce(summaryRefresh.promise); const getParticipant = vi.fn().mockResolvedValueOnce({ ...detail, items: [item('grant-1', 25)], nextCursor: 'next' }).mockResolvedValueOnce({ ...detail, items: [{ ...item('later', 3), correction: null }], nextCursor: null }).mockResolvedValueOnce({ ...detail, totalXp: 15, items: [item('grant-1', 25)], nextCursor: null }); const service = api({ getScoresheet, getParticipant }); const user = userEvent.setup(); render(<ManagerScoresheet api={service} newRequestId={ids} />)
-    await user.click(await screen.findByRole('button', { name: 'Avery Demo' })); await user.click(await screen.findByRole('button', { name: 'Load more' })); expect(await screen.findByText('+3 XP')).toBeInTheDocument(); await prepareAward(user); await user.click(screen.getByRole('button', { name: 'Review award' })); await user.click(screen.getByRole('button', { name: 'Confirm award' })); await waitFor(() => expect(getParticipant).toHaveBeenLastCalledWith('p1', 'aug', null)); expect(screen.queryByText('+3 XP')).not.toBeInTheDocument(); expect(screen.queryByText(/Manual XP award.*recorded/)).not.toBeInTheDocument(); summaryRefresh.resolve({ ...summary, rows: [{ ...summary.rows[0], totalXp: 15 }] }); expect(await screen.findByText(/Manual XP award for Avery Demo recorded/)).toBeInTheDocument(); expect(ids).toHaveBeenCalledTimes(2); expect(screen.getByLabelText('Manual Award reason')).toHaveValue('')
+    await user.click(await screen.findByRole('button', { name: 'Avery Demo' })); await user.click(await screen.findByRole('button', { name: 'Load more' })); expect(await screen.findByText('+3 XP')).toBeInTheDocument(); await prepareAward(user); await user.click(screen.getByRole('button', { name: 'Review award' })); await user.click(screen.getByRole('button', { name: 'Confirm award' })); await waitFor(() => expect(getParticipant).toHaveBeenLastCalledWith('p1', 'aug', null)); expect(screen.queryByText('+3 XP')).not.toBeInTheDocument(); expect(screen.queryByText(/Manual XP award.*recorded/)).not.toBeInTheDocument(); summaryRefresh.resolve({ ...summary, rows: [{ ...summary.rows[0], totalXp: 15 }] }); expect(await screen.findByText(/Manual XP award for Avery Demo recorded/)).toBeInTheDocument(); expect(ids).toHaveBeenCalledTimes(2); await waitFor(() => expect(screen.getByLabelText('Manual Award reason')).toHaveValue(''))
   })
 })

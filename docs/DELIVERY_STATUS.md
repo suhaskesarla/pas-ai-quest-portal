@@ -84,7 +84,7 @@ Only these feature statuses are used:
 | Durable restart/persistence orchestration | Designed only | Compose persistence strategy documented | `NOT_STARTED` | Seeder/migrations are idempotent at lower layers | Not applicable | Restart specs are all `fixme` | Never executed | Not required for immediate demo | No | Yes | Build serial down/up-without-volume-removal acceptance | QA/DevOps |
 | Production evidence/blob security | Step 7 architecture approved; production scanner required | Managed identity/user-delegation/private blob direction implemented in part | `IN_PROGRESS` | Azure path and validation exist; production scanner is deliberately disabled | Attachment UX exists | Security/config tests exist | Local Azurite Docker only | Local-ready, not production-ready | No | Yes | Integrate real malware scanner, Azure identity/storage configuration and security validation | Security + Backend/DevOps |
 | Evidence retention/deletion | BA-010 policy unresolved | Configurable/no destructive default is frozen | `BLOCKED` | No automatic deletion, correctly | No retention controls | No assumed-policy tests | None | Safely excluded | No | Yes before enabling retention/purge | Obtain approved retention and records-management policy | Product Owner/BA/Security |
-| Teams Notification MVP | BA-017 business rules **DONE**: seven outbound events, audiences, content/privacy, deduplication, failure, freshness and deep-link intent are approved | Architecture **DONE**; implementation has not started | `DEFERRED` | **NOT_STARTED:** no delivery, destination configuration, identity mapping or leaderboard-post command | **NOT_STARTED:** no Teams UI | None | None | **NOT_READY:** tenant/app registration, destinations and durable private-recipient identity mapping are external dependencies | No; remains outside canonical immediate demo | Production tenant/configuration required if later released | Keep deferred; implementation and tenant/configuration remain outstanding | Delivery prioritisation; tenant/admin dependency if reactivated |
+| Teams Notification MVP | BA-017 business rules **DONE** | Architecture and code implementation **DONE** | `LIVE_ACTIVATION_PENDING` | Transactional outbox, Capture/TeamsBot providers, seven events, secure identity provisioning, authenticated personal/channel capture and verified destination assignment implemented | Leaderboard action/deep links implemented | Automated backend/frontend verification passing | Capture-mode acceptance available | **NOT_READY:** tenant/app registration, public endpoint, app installation and live destinations/identity references require tenant admin inputs | No; remains outside canonical immediate demo | Production tenant/configuration and privacy approval required | Run `TEAMS_ACTIVATION.md` against the approved tenant | Tenant/admin credentials and installation authority; leaderboard privacy approval |
 | Advanced analytics | Listed in screen inventory but explicitly deferred from local demo | No dedicated read-model/API design | `DEFERRED` | No analytics endpoint | No Analytics navigation/screen | None | None | Not ready | No | Optional product scope | Product Owner must define bounded value before implementation | Product Owner |
 | Advanced Raid capabilities | BA-016 explicitly excludes teams, correction, delete/restore, reversals, QR, bulk, analytics and integrations | Not designed for current MVP | `DEFERRED` | None beyond MVP | None | None | None | Excluded | No | No unless later selected | Re-scope individually after MVP feedback | Product Owner |
 | Score-dispute workflow | BA-008 open and deliberately outside current workflow | Not designed | `DEFERRED` | None | None | None | None | Excluded | No | Optional | Decide whether disputes stay external | Product Owner/BA |
@@ -151,17 +151,17 @@ Only these feature statuses are used:
 |---|---|
 | Approved product scope | BA-017 business rules are complete for the bounded outbound Teams Notification MVP. This has not promoted Teams into the canonical immediate demo. |
 | BA notification rules | `DONE`: seven events, audiences, minimum/private content, duplicate/failure/freshness semantics and logical deep links are approved. |
-| Architecture | `DONE`: approved Teams architecture review. No implementation is implied by this gate. |
-| Teams manifest | Not present. |
-| Teams tab | Not present. |
-| Teams authentication | Not present. |
-| Notification delivery | Not present. |
-| Adaptive Cards | Not present. |
-| Deep links | Not present. |
+| Architecture | `DONE`: approved Teams architecture implemented without changing portal authorization ownership. |
+| Teams manifest | Parameterized `teams-app` package scaffold present; live IDs/domain/icons and tenant upload remain activation work. |
+| Teams tab | Existing portal views are linked; Teams SSO is intentionally not claimed. |
+| Teams authentication | Bot Framework JWT activity authentication implemented; Entra/MSAL portal login remains separate. |
+| Notification delivery | Transactional outbox, Capture and TeamsBot transport implemented; live send not yet tenant-verified. |
+| Adaptive Cards | Event-specific safe renderer implemented. |
+| Deep links | Existing-view route mapping implemented and frontend-tested. |
 | Tenant/configuration | `NOT_READY`: real tenant/app registration, configured destinations and durable `(tenantId, oid)` private-recipient mapping remain external dependencies. |
-| Tests | None; implementation is `NOT_STARTED`. |
+| Tests | Automated notification, SQL migration/concurrency, transport-security, frontend and Capture-mode coverage pass; live tenant smoke remains pending. |
 
-Conclusion: BA-017 business rules and architecture are **DONE**. Implementation is **NOT_STARTED**, tenant/configuration is **NOT_READY**, and Teams remains **deferred from the canonical immediate demo**.
+Conclusion: BA-017 business rules, architecture and code implementation are **DONE**. Live tenant activation is **PENDING EXTERNAL TENANT INPUTS**; Teams remains outside the canonical immediate demo until that activation is verified.
 
 ### Entra Authentication
 

@@ -5,6 +5,7 @@ import type { ManagerReportingCycle, ManagerReportingCycles, ManualAwardOptions,
 const signed = (amount: number) => amount >= 0 ? `+${amount} XP` : `−${Math.abs(amount)} XP`
 const date = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 function State({ text, error, retry }: { text: string; error?: boolean; retry?: () => void }) { return <div className={`reporting-state${error ? ' reporting-state--error' : ''}`} role={error ? 'alert' : 'status'}><p>{text}</p>{retry && <button className="button button--quiet" type="button" onClick={retry}>Retry</button>}</div> }
+type AnnouncementIntent = { cycleId: string; requestId: string; pending: boolean; message: string | null; error: string | null }
 
 export function ManagerScoresheet({ api, newRequestId = () => crypto.randomUUID() }: { api: ScoresheetApi; newRequestId?: () => string }) {
   const [cycles, setCycles] = useState<ManagerReportingCycles | null>(null)
@@ -17,6 +18,7 @@ export function ManagerScoresheet({ api, newRequestId = () => crypto.randomUUID(
   const [awardOpen, setAwardOpen] = useState(false)
   const [awardRequestId, setAwardRequestId] = useState('')
   const [awardSuccess, setAwardSuccess] = useState<string | null>(null)
+  const [announcementIntents, setAnnouncementIntents] = useState<Record<string, AnnouncementIntent>>({})
   const summaryRequest = useRef(0)
   const refreshOpenDetail = useRef<(() => Promise<void>) | null>(null)
   const activeCycle = useRef(cycleId)
@@ -24,14 +26,36 @@ export function ManagerScoresheet({ api, newRequestId = () => crypto.randomUUID(
   const loadCycles = useCallback(async () => { setLoadingCycles(true); setError(null); try { const result = await api.getReportingCycles(); setCycles(result); setCycleId((current) => result.cycles.some((cycle) => cycle.id === current) ? current : result.defaultCycleId ?? '') } catch (requestError) { setError(scoresheetErrorMessage(requestError)) } finally { setLoadingCycles(false) } }, [api])
   const loadSummary = useCallback(async () => { if (!cycleId) return; const request = ++summaryRequest.current; setLoading(true); setError(null); setSelectedId(null); try { const result = await api.getScoresheet(cycleId); if (request === summaryRequest.current) setSummary(result) } catch (requestError) { if (request === summaryRequest.current) setError(scoresheetErrorMessage(requestError)) } finally { if (request === summaryRequest.current) setLoading(false) } }, [api, cycleId])
   const refreshSummary = useCallback(async () => { if (activeCycle.current !== cycleId) throw new Error('Reporting cycle changed.'); const request = ++summaryRequest.current; const result = await api.getScoresheet(cycleId); if (request !== summaryRequest.current || activeCycle.current !== cycleId) throw new Error('Reporting cycle changed.'); setSummary(result) }, [api, cycleId])
+  const postLeaderboard = async (newPost = false) => {
+    const originatingCycleId = cycleId; const existing = announcementIntents[originatingCycleId]
+    if (existing?.pending) return
+    const requestId = newPost || !existing?.requestId ? newRequestId() : existing.requestId
+    const update = (values: Partial<AnnouncementIntent>) => setAnnouncementIntents((current) => {
+      const intent = current[originatingCycleId]
+      if (intent && intent.requestId !== requestId) return current
+      const base: AnnouncementIntent = intent ?? { cycleId: originatingCycleId, requestId, pending: false, message: null, error: null }
+      return { ...current, [originatingCycleId]: { ...base, ...values } }
+    })
+    setAnnouncementIntents((current) => ({ ...current, [originatingCycleId]: { cycleId: originatingCycleId, requestId, pending: true, message: null, error: null } }))
+    try { const result = await api.postLeaderboard(originatingCycleId, requestId); update({ message: result.status === 'Captured' ? 'Captured for demo.' : 'Queued for notification.' }) }
+    catch (requestError) {
+      if (requestError instanceof ScoresheetApiError && requestError.code === 'RealUserLeaderboardDisabled') update({ error: 'Leaderboard notifications are disabled pending privacy approval.' })
+      else if (requestError instanceof ScoresheetApiError && requestError.code === 'NotificationsDisabled') update({ error: 'Notifications are disabled.' })
+      else if (requestError instanceof ScoresheetApiError && requestError.status === 409) update({ error: requestError.detail || 'This request conflicts with an earlier announcement. Start a new post to use a new request identifier.' })
+      else update({ error: 'The announcement request could not be confirmed. Retry keeps the same request identifier.' })
+    } finally { update({ pending: false }) }
+  }
   useEffect(() => { void loadCycles() }, [loadCycles])
   useEffect(() => { void loadSummary() }, [loadSummary])
   if (loadingCycles) return <State text="Loading manager reporting cycles…" />
   if (error && !cycles) return <State text={error} error retry={() => void loadCycles()} />
   if (!cycles?.cycles.length || !cycleId) return <State text="No reporting cycles are available for the Scoresheet." />
   const selectedCycle = cycles.cycles.find((cycle) => cycle.id === cycleId)!
-  return <div className="reporting-area"><div className="cycle-context"><div><p className="eyebrow">MANAGER REPORTING</p><strong>{selectedCycle.name}</strong><span>Cycle selection changes this Scoresheet reporting context.</span></div><label><span>Reporting cycle</span><select aria-label="Scoresheet reporting cycle" value={cycleId} onChange={(event) => { setAwardOpen(false); setAwardSuccess(null); setAwardRequestId(newRequestId()); setSelectedId(null); setCycleId(event.target.value) }}>{cycles.cycles.map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name} · {cycle.status}</option>)}</select></label></div>
-    <header className="section-heading scoresheet-heading"><div><p className="eyebrow">APPEND-ONLY XP LEDGER</p><h2>Scoresheet summary</h2><p>All cycle participants are shown, including zero-XP and inactive roster entries.</p></div><button className="button" type="button" onClick={() => { setAwardSuccess(null); if (!awardRequestId) setAwardRequestId(newRequestId()); setAwardOpen(true) }}>Award XP</button></header>
+  const announcement = announcementIntents[cycleId]
+  return <div className="reporting-area"><div className="cycle-context"><div><p className="eyebrow">MANAGER REPORTING</p><strong>{selectedCycle.name}</strong><span>Cycle selection changes this Scoresheet reporting context.</span></div><label><span>Reporting cycle</span><select aria-label="Scoresheet reporting cycle" value={cycleId} onChange={(event) => { setAwardOpen(false); setAwardSuccess(null); setAwardRequestId(''); setSelectedId(null); setCycleId(event.target.value) }}>{cycles.cycles.map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name} · {cycle.status}</option>)}</select></label></div>
+    <header className="section-heading scoresheet-heading"><div><p className="eyebrow">APPEND-ONLY XP LEDGER</p><h2>Scoresheet summary</h2><p>All cycle participants are shown, including zero-XP and inactive roster entries.</p></div><div className="form-actions"><button className="button button--quiet" type="button" disabled={announcement?.pending} onClick={() => void postLeaderboard(announcement?.message !== null && announcement?.message !== undefined)}>{announcement?.pending ? 'Queueing…' : announcement?.message ? 'Post leaderboard again' : 'Post leaderboard to Teams'}</button><button className="button" type="button" onClick={() => { setAwardSuccess(null); if (!awardRequestId) setAwardRequestId(newRequestId()); setAwardOpen(true) }}>Award XP</button></div></header>
+    {announcement?.message && <div className="success-notice" role="status">{announcement.message}</div>}
+    {announcement?.error && <div className="reporting-state reporting-state--error" role="alert"><p>{announcement.error}</p><div className="form-actions"><button className="button button--quiet" type="button" disabled={announcement.pending} onClick={() => void postLeaderboard(false)}>Retry</button><button className="button button--quiet" type="button" disabled={announcement.pending} onClick={() => void postLeaderboard(true)}>Abandon and start new announcement</button></div></div>}
     {awardSuccess && <div className="success-notice" role="status">{awardSuccess}</div>}
     {awardOpen && <ManualAwardPanel api={api} cycle={selectedCycle} requestId={awardRequestId} onClose={() => setAwardOpen(false)} onReset={() => { setAwardSuccess(null); setAwardRequestId(newRequestId()) }} onCreated={async (participantId, participantName) => { if (selectedId === participantId && refreshOpenDetail.current) await refreshOpenDetail.current(); await refreshSummary(); setAwardSuccess(`Manual XP award for ${participantName} recorded and authoritative Scoresheet data refreshed.`); setAwardRequestId(newRequestId()) }} />}
     {loading ? <State text="Loading Scoresheet…" /> : error ? <State text={error} error retry={() => void loadSummary()} /> : !summary?.rows.length ? <State text="No participants are enrolled in this reporting cycle." /> : <div className="table-wrap"><table className="scoresheet-table"><thead><tr><th>Participant</th><th>Status</th><th>Task Approval XP</th><th>Manual Award XP</th><th>Raid XP</th><th>Adjustments</th><th>Total XP</th></tr></thead><tbody>{summary.rows.map((row) => <tr key={row.participantId}><td><button className="participant-link" type="button" onClick={() => setSelectedId(row.participantId)}>{row.displayName}</button></td><td><span className="participant-status">{row.participantStatus}</span></td><td>{row.bySource.taskApprovalXp}</td><td>{row.bySource.manualAwardXp}</td><td>{row.bySource.raidXp}</td><td className={row.byEntryType.netAdjustmentXp < 0 ? 'xp-negative' : ''}>{row.byEntryType.netAdjustmentXp}</td><td><strong>{row.totalXp}</strong></td></tr>)}</tbody></table></div>}

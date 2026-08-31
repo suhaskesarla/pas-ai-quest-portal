@@ -16,7 +16,7 @@ const participant: CurrentUser = { isAuthenticated: true, participantId: 'p-demo
 const manager: CurrentUser = { isAuthenticated: true, participantId: 'm-demo', displayName: 'Morgan Demo', roles: ['Quest.Manager'] }
 const profiles = [{ key: 'participant', label: 'Avery Demo — Participant' }, { key: 'manager', label: 'Morgan Demo — Manager' }]
 
-afterEach(cleanup)
+afterEach(() => { cleanup(); window.history.replaceState({}, '', '/') })
 
 function fakeApi(overrides: Partial<AuthApi> = {}): AuthApi {
   return {
@@ -131,6 +131,34 @@ describe('Step 5A authentication shell', () => {
   })
 })
 
+describe('notification deep links', () => {
+  const entityId = '11111111-1111-4111-8111-111111111111'
+  const participantApp = () => renderApp(fakeApi({ getCurrentUser: vi.fn().mockResolvedValue(participant) }), false, { workflow: fakeWorkflow() })
+  const managerApp = () => renderApp(fakeApi({ getCurrentUser: vi.fn().mockResolvedValue(manager) }), false, { workflow: fakeWorkflow(), challengeAdmin: fakeChallengeAdmin(), scoresheet: fakeScoresheet() })
+
+  it.each([
+    [`/challenges/${entityId}`, 'Challenges'],
+    [`/activity/submissions/${entityId}`, 'My activity'],
+    [`/activity/submissions/${entityId}/history`, 'My activity'],
+    [`/xp-activity?cycleId=${entityId}`, 'XP Activity'],
+    [`/leaderboard?cycleId=${entityId}`, 'Leaderboard'],
+  ])('maps direct participant URL %s to the existing %s view', async (url, heading) => {
+    window.history.replaceState({}, '', url); participantApp(); expect(await screen.findByRole('heading', { name: heading, level: 1 })).toBeInTheDocument()
+  })
+
+  it('maps a direct manager submission URL to the existing review queue', async () => {
+    window.history.replaceState({}, '', `/manager/submissions/${entityId}`); managerApp(); expect(await screen.findByRole('heading', { name: 'Review Queue', level: 1 })).toBeInTheDocument()
+  })
+
+  it('resolves the same direct link again after an application refresh', async () => {
+    window.history.replaceState({}, '', `/xp-activity?cycleId=${entityId}`); participantApp(); expect(await screen.findByRole('heading', { name: 'XP Activity', level: 1 })).toBeInTheDocument(); cleanup(); participantApp(); expect(await screen.findByRole('heading', { name: 'XP Activity', level: 1 })).toBeInTheDocument()
+  })
+
+  it('fails safely to Dashboard for malformed or unauthorized routes', async () => {
+    window.history.replaceState({}, '', '/manager/submissions/not-a-guid'); participantApp(); expect(await screen.findByRole('heading', { name: 'Dashboard', level: 1 })).toBeInTheDocument(); cleanup(); window.history.replaceState({}, '', `/manager/submissions/${entityId}`); participantApp(); expect(await screen.findByRole('heading', { name: 'Dashboard', level: 1 })).toBeInTheDocument()
+  })
+})
+
 describe('manager navigation and dashboard', () => {
   const managerApp = (workflow = fakeWorkflow()) => renderApp(fakeApi({ getCurrentUser: vi.fn().mockResolvedValue(manager) }), false, { workflow, challengeAdmin: fakeChallengeAdmin(), scoresheet: fakeScoresheet() })
 
@@ -141,6 +169,7 @@ describe('manager navigation and dashboard', () => {
   it('routes managers to Cycle Administration and does not expose it to participants', async () => { managerApp(); const user = userEvent.setup(); await user.click(await screen.findByRole('button', { name: 'Cycle Administration' })); expect(await screen.findByRole('heading', { name: 'Cycle Administration', level: 2 })).toBeInTheDocument(); cleanup(); renderApp(fakeApi(), false); await screen.findByRole('heading', { name: 'Welcome, Avery Demo' }); expect(within(screen.getByRole('navigation')).queryByRole('button', { name: 'Cycle Administration' })).not.toBeInTheDocument() })
 
   it('routes managers to Raid Administration and hides it from participants', async () => { managerApp(); const user = userEvent.setup(); await user.click(await screen.findByRole('button', { name: 'Raid Administration' })); expect(await screen.findByRole('heading', { name: 'Raid Administration', level: 2 })).toBeInTheDocument(); cleanup(); renderApp(fakeApi(), false); await screen.findByRole('heading', { name: 'Welcome, Avery Demo' }); expect(within(screen.getByRole('navigation')).queryByRole('button', { name: 'Raid Administration' })).not.toBeInTheDocument() })
+  it('does not expose the manager leaderboard notification action to participants', async () => { renderApp(fakeApi(), false); await screen.findByRole('heading', { name: 'Welcome, Avery Demo' }); expect(screen.queryByRole('button', { name: 'Post leaderboard to Teams' })).not.toBeInTheDocument(); expect(within(screen.getByRole('navigation')).queryByRole('button', { name: 'Scoresheet' })).not.toBeInTheDocument() })
 
   it('renders three manager action cards and navigates to each existing destination', async () => {
     managerApp(); const user = userEvent.setup(); expect(await screen.findByRole('heading', { name: 'Manager Dashboard' })).toBeInTheDocument(); expect(screen.getByText('Manage challenges, review participant submissions, and maintain the authoritative XP record.')).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Manage Challenges' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Review Submissions' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Scoresheet & XP' })).toBeInTheDocument()

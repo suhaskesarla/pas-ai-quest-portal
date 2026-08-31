@@ -1,0 +1,31 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.22/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.22",
+  "version": "1.0.0",
+  "id": "{{TEAMS_APP_ID}}",
+  "developer": {
+    "name": "PAS AI Quest",
+    "websiteUrl": "{{PORTAL_BASE_URL}}",
+    "privacyUrl": "{{PRIVACY_URL}}",
+    "termsOfUseUrl": "{{TERMS_URL}}"
+  },
+  "icons": { "color": "color.png", "outline": "outline.png" },
+  "name": { "short": "PAS AI Quest", "full": "PAS AI Quest Portal" },
+  "description": {
+    "short": "Quest notifications and portal deep links.",
+    "full": "Receives PAS AI Quest notifications and opens the authoritative portal for action."
+  },
+  "accentColor": "#4B2E83",
+  "staticTabs": [
+    { "entityId": "quest-portal", "name": "Quest Portal", "contentUrl": "{{PORTAL_BASE_URL}}", "websiteUrl": "{{PORTAL_BASE_URL}}", "scopes": ["personal", "team"] }
+  ],
+  "bots": [
+    { "botId": "{{MICROSOFT_APP_ID}}", "scopes": ["personal", "team"], "supportsFiles": false, "isNotificationOnly": true }
+  ],
+  "permissions": ["identity"],
+  "validDomains": ["{{PORTAL_HOST}}", "{{BOT_HOST}}"],
+  "webApplicationInfo": {
+    "id": "{{ENTRA_APP_ID}}",
+    "resource": "api://{{PORTAL_HOST}}/{{ENTRA_APP_ID}}"
+  }
+}
