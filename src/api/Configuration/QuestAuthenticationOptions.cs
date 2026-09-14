@@ -29,6 +29,15 @@ public sealed class QuestAuthenticationOptions
     public string Mode { get; init; } = "";
 
     public DemoAuthenticationOptions Demo { get; init; } = new();
+    public EntraAuthenticationOptions Entra { get; init; } = new();
+}
+
+public sealed class EntraAuthenticationOptions
+{
+    public string TenantId { get; init; } = "";
+    public string Audience { get; init; } = "";
+    public string RequiredScope { get; init; } = "";
+    public string AuthorityHost { get; init; } = "https://login.microsoftonline.com";
 }
 
 public sealed class DemoAuthenticationOptions

@@ -1,4 +1,5 @@
 import type { CurrentUser, DemoProfile } from './types'
+import { apiFetch } from './apiClient'
 
 export class AuthApiError extends Error {
   constructor(public readonly status: number) {
@@ -8,7 +9,7 @@ export class AuthApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     credentials: 'same-origin',
     ...init,
     headers: init?.body ? { 'Content-Type': 'application/json', ...init.headers } : init?.headers,

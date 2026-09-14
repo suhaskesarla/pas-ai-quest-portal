@@ -53,6 +53,7 @@ services:
       dockerfile: src/web/Dockerfile
       args:
         VITE_DEMO_AUTH_ENABLED: "true"
+        VITE_APP_ENVIRONMENT: Development
     ports:
       - "5173:8080"
     depends_on:

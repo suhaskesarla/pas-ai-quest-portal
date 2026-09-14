@@ -233,6 +233,26 @@ mark { margin-left: 8px; padding: 2px 7px; border-radius: 999px; color: #0a1f44;
 .state-card { text-align: center; }
 .spinner { width: 34px; height: 34px; justify-self: center; border: 4px solid #dfe3e8; border-top-color: #1b5fce; border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.login-page { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; place-items: center; gap: 24px; padding: 36px 20px 22px; color: #f7f8fb; background: radial-gradient(circle at 50% 25%, #17335f 0, #0a1f44 45%, #06152e 100%); }
+.login-brand { display: flex; align-items: center; gap: 12px; letter-spacing: .08em; }
+.login-brand span { padding: 5px 7px; color: #0a1f44; background: #ffc72c; font-size: 13px; font-weight: 900; }
+.login-brand strong { font-size: 18px; }
+.login-card { width: min(440px, 100%); padding: 36px; border-top: 5px solid #ffc72c; border-radius: 12px; color: #0a1f44; background: white; box-shadow: 0 24px 65px rgb(0 0 0 / 28%); }
+.login-card h1 { margin: 8px 0 12px; font-size: clamp(26px, 5vw, 34px); line-height: 1.15; }
+.login-card > p:not(.eyebrow) { color: #53647a; line-height: 1.55; }
+.login-card--loading { display: grid; justify-items: center; text-align: center; }
+.microsoft-signin { display: flex; width: 100%; align-items: center; justify-content: center; gap: 12px; margin: 24px 0 20px; padding: 13px 18px; border: 2px solid #0a1f44; border-radius: 7px; color: white; background: #0a1f44; cursor: pointer; font: inherit; font-weight: 800; }
+.microsoft-signin:hover:not(:disabled) { background: #17335f; }
+.microsoft-signin:focus-visible, .login-page button:focus-visible { outline: 3px solid #ffc72c; outline-offset: 3px; }
+.microsoft-signin:disabled { cursor: wait; opacity: .7; }
+.microsoft-mark { display: grid; grid-template-columns: repeat(2, 8px); grid-template-rows: repeat(2, 8px); gap: 2px; }
+.microsoft-mark i:nth-child(1) { background: #f35325; }.microsoft-mark i:nth-child(2) { background: #81bc06; }.microsoft-mark i:nth-child(3) { background: #05a6f0; }.microsoft-mark i:nth-child(4) { background: #ffba08; }
+.login-guidance { padding-top: 16px; border-top: 1px solid #dfe3e8; color: #53647a; font-size: 13px; }
+.login-guidance p { margin: 3px 0; }
+.login-error { margin-top: 16px; padding: 10px 12px; border-left: 4px solid #b42318; color: #7a271a; background: #fef3f2; }
+.login-page footer { color: #d2dae7; font-size: 12px; text-align: center; }
+.identity__signout { margin-top: 7px; padding: 4px 8px; border: 1px solid #b9c2ce; border-radius: 6px; color: #0a1f44; background: white; cursor: pointer; font-size: 11px; }
+.state-actions { display: flex; justify-content: center; gap: 8px; }
 @media (max-width: 760px) {
   .portal-shell { display: block; }
   .sidebar { width: 100%; min-height: auto; padding-bottom: 0; }

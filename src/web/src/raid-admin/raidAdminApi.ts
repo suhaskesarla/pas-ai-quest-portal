@@ -3,7 +3,7 @@ import type { CreateRaidSessionRequest, RaidCycleList, RaidParticipantList, Raid
 export class RaidAdminApiError extends Error { constructor(public status: number, public code?: string, detail?: string) { super(detail || `Request failed (${status})`) } }
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
-  try { response = await fetch(path, { credentials: 'same-origin', ...init, headers: init?.body ? { 'Content-Type': 'application/json', ...init.headers } : init?.headers }) }
+  try { response = await apiFetch(path, { credentials: 'same-origin', ...init, headers: init?.body ? { 'Content-Type': 'application/json', ...init.headers } : init?.headers }) }
   catch { throw new RaidAdminApiError(0, 'NetworkFailure', 'Network request failed.') }
   if (!response.ok) { const problem = await response.json().catch(() => null) as { code?: string; title?: string; detail?: string } | null; throw new RaidAdminApiError(response.status, problem?.code || problem?.title, problem?.detail || problem?.title) }
   return response.json() as Promise<T>
@@ -29,3 +29,4 @@ const messages: Record<string, string> = {
   InvalidRaidXpAmount: 'Enter a positive whole-number XP amount.', RaidXpReasonRequired: 'Enter a reason for the Raid XP award.', RaidXpReasonTooLong: 'Reason must be 2,000 characters or fewer.', RaidSessionValidationFailed: 'Enter a session name of 200 characters or fewer and an occurrence time.',
 }
 export const raidError = (error: unknown) => error instanceof RaidAdminApiError ? error.status === 401 ? 'Your session has expired.' : error.status === 403 ? 'Manager authorization is required.' : error.code && messages[error.code] ? messages[error.code] : error.message : 'Something went wrong. Please try again.'
+import { apiFetch } from '../auth/apiClient'

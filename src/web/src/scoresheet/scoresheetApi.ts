@@ -9,7 +9,7 @@ export class ScoresheetApiError extends Error {
 
 async function request<T>(path: string, command?: { method: 'POST'; payload: unknown }): Promise<T> {
   let response: Response
-  try { response = await fetch(path, { credentials: 'same-origin', method: command?.method, headers: command ? { 'Content-Type': 'application/json' } : undefined, body: command ? JSON.stringify(command.payload) : undefined }) }
+  try { response = await apiFetch(path, { credentials: 'same-origin', method: command?.method, headers: command ? { 'Content-Type': 'application/json' } : undefined, body: command ? JSON.stringify(command.payload) : undefined }) }
   catch { throw new ScoresheetApiError(0, 'Network request failed.') }
   if (!response.ok) {
     const problem = await response.json().catch(() => null) as { detail?: string; title?: string; code?: string } | null
@@ -38,3 +38,4 @@ export function scoresheetErrorMessage(error: unknown) {
   if (error.status === 0) return 'Network connection failed. Check your connection and try again.'
   return error.detail || 'The scoresheet could not be loaded.'
 }
+import { apiFetch } from '../auth/apiClient'

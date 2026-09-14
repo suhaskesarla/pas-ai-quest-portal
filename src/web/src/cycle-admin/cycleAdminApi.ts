@@ -5,7 +5,7 @@ export class CycleAdminApiError extends Error {
 }
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
-  try { response = await fetch(path, { credentials: 'same-origin', ...init, headers: init?.body ? { 'Content-Type': 'application/json', ...init.headers } : init?.headers }) }
+  try { response = await apiFetch(path, { credentials: 'same-origin', ...init, headers: init?.body ? { 'Content-Type': 'application/json', ...init.headers } : init?.headers }) }
   catch { throw new CycleAdminApiError(0, 'NetworkFailure', 'Network request failed.') }
   if (!response.ok) {
     const problem = await response.json().catch(() => null) as { code?: string; title?: string; detail?: string } | null
@@ -25,3 +25,4 @@ export const cycleAdminApi = {
 }
 export type CycleAdminApi = typeof cycleAdminApi
 export const cycleError = (error: unknown) => error instanceof CycleAdminApiError ? error.status === 401 ? 'Your session has expired.' : error.status === 403 ? 'Manager authorization is required.' : error.message : 'Something went wrong. Please try again.'
+import { apiFetch } from '../auth/apiClient'

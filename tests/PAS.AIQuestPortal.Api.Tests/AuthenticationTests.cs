@@ -5,9 +5,11 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using PAS.AIQuestPortal.Api.Authentication;
 using PAS.AIQuestPortal.Api.Configuration;
 using PAS.AIQuestPortal.Api.Workflow;
@@ -24,6 +26,8 @@ public sealed class AuthenticationTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Test" });
+        builder.Logging.ClearProviders();
+        builder.Services.AddSingleton<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(new EphemeralDataProtectionProvider());
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(DemoConfiguration());
         builder.AddQuestAuthentication();
@@ -56,11 +60,11 @@ public sealed class AuthenticationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Manager_authenticates_and_does_not_implicitly_satisfy_participant()
+    public async Task Manager_authenticates_and_satisfies_central_participant_capability()
     {
         string cookie = await CreateSessionAsync("manager");
         Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Get, "/test/manager", cookie)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(HttpMethod.Get, "/test/participant", cookie)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Get, "/test/participant", cookie)).StatusCode);
     }
 
     [Fact]
@@ -78,8 +82,6 @@ public sealed class AuthenticationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, (await _client.GetAsync("/api/submissions/review-queue")).StatusCode);
         string participant = await CreateSessionAsync("participant");
         Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(HttpMethod.Get, "/api/submissions/review-queue", participant)).StatusCode);
-        string manager = await CreateSessionAsync("manager");
-        Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(HttpMethod.Get, "/api/challenges/eligible", manager)).StatusCode);
     }
 
     [Fact]
@@ -124,7 +126,7 @@ public sealed class AuthenticationTests : IAsyncLifetime
     [Theory]
     [InlineData("", "Development", "required")]
     [InlineData("Unknown", "Development", "Unknown")]
-    [InlineData("Entra", "Development", "Step 5B")]
+    [InlineData("Entra", "Development", "TenantId")]
     [InlineData("Demo", "Production", "not allowed")]
     public void Invalid_mode_or_environment_fails_startup(string mode, string environment, string message)
     {

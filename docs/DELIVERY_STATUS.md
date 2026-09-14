@@ -51,9 +51,9 @@ Only these feature statuses are used:
 
 | Feature / Capability | Business decision | Architecture | Current status | Backend | Frontend | Automated tests | Browser QA | Demo readiness | Needed for next demo? | Production requirement? | Remaining work | Blocker / owner |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Development/Test demo authentication | Step 5A approved; synthetic identities only | Cookie/session seam and server roles implemented | `DONE` | Demo profiles, same-origin session endpoints, policies and fail-closed startup | Demo identity selector and unauthenticated/error states | Authentication/API/component tests | Auth smoke and multiple focused Docker journeys | Ready locally | Yes | No; must not be enabled in production | Retain isolation while Step 5B is added | None |
-| Real Entra authentication and authorization (Step 5B) | Required by spec; deferred from local demo | Frozen direction: Entra app roles, MSAL, API token validation | `NOT_STARTED` | Entra mode intentionally fails startup; no JWT validation | No MSAL/login redirect | Only tests proving Entra is not implemented and demo mode is isolated | None | Not ready | No | Yes | Tenant configuration, JWT bearer validation, identity resolution and role enforcement | Security/Architect plus tenant/app-registration access |
-| Production login experience | Required with Step 5B | Depends on Entra/MSAL design | `NOT_STARTED` | No login initiation/callback contract | Generic “not signed in” state only; no MSAL login page | Demo auth tests only | None | Not ready | No | Yes | Implement sign-in/sign-out/error/consent UX with MSAL | Step 5B / Frontend + Security |
+| Development/Test demo authentication | Step 5A approved; synthetic identities only | Cookie/session seam and server roles implemented | `DONE` | Demo profiles, same-origin session endpoints, policies and fail-closed startup | Demo identity selector and unauthenticated/error states | Authentication/API/component tests | Auth smoke and multiple focused Docker journeys | Ready locally | Yes | No; must not be enabled in production | Retain isolation during live Entra activation | None |
+| Real Entra authentication and authorization (Step 5B) | Required by spec | Single-tenant JWT bearer, durable `(tenantId, oid)` Participant mapping and exact `Quest.Manager` app role | `LIVE_ACTIVATION_PENDING` | Issuer/audience/signature/lifetime validation, read-only identity resolution and policies implemented | MSAL redirect/silent token flow and authoritative profile bootstrap implemented | JWT, identity, role, profile and demo-isolation tests | Live tenant not tested | Code-ready, tenant activation pending | No | Yes | Configure/consent real tenant SPA/API registrations and provision approved users | Tenant/app-registration access |
+| Production login experience | Required with Step 5B | MSAL SPA plus authoritative API profile | `LIVE_ACTIVATION_PENDING` | `/api/auth/me` distinguishes unauthenticated, unprovisioned and forbidden | Approved Microsoft login, redirect recovery, sign-out and access states implemented | Focused frontend auth suite plus backend profile tests | Live tenant not tested | Code-ready, tenant activation pending | No | Yes | Register redirects/scope and perform live tenant smoke | Tenant admin |
 | Deterministic local demo bootstrap | Approved normal demo path; no QA SQL injection | Application seeder over migrated SQL/Azurite | `DONE` | Idempotent Development seeder creates synthetic cycle/users/challenges/tasks/reporting data | Consumed through normal APIs | Seeder behavior covered indirectly/lower-level | Clean Docker focused suites use normal bootstrap | Ready | Yes | No | Keep seed compatible with new features | None |
 | Participant challenge discovery | BA-005/006/011 resolved | Existing workflow/read model | `DONE` | Eligible challenge/task/participation API | Challenges and Submit Work navigation | Workflow/API/component tests | Step 6 and clean Docker showcase paths | Ready | Yes | Yes | None for current scope | None |
 | Manager Challenge Administration: create/edit/publish | BA-011 resolved | Rowversion concurrency and relational task/policy model implemented | `DONE` | Options, list/detail, create, Draft update, publish | Manager challenge list/editor/publish UI | SQL/API and component tests | Clean Docker manager-challenges passed | Ready | Yes | Yes | None for approved initial contract | None |
@@ -119,7 +119,7 @@ Only these feature statuses are used:
 - Durable restart/persistence acceptance.
 - Participant deadline-override manager workflow if retained as an operational requirement.
 - Team formation/manager team administration if retained.
-- Real Entra Step 5B.
+- Live Entra tenant/app activation and authorization smoke validation; code implementation is complete.
 - Production evidence scanner/storage hardening.
 - CI/CD, Azure deployment, observability and security readiness.
 - Challenge close/archive only after bounded product scope is confirmed.
@@ -167,17 +167,17 @@ Conclusion: BA-017 business rules, architecture and code implementation are **DO
 
 | Item | Audit result |
 |---|---|
-| Login page | Generic unauthenticated state only; no Entra sign-in flow. |
-| MSAL frontend | Not present. |
-| JWT validation backend | Not present; `Authentication:Mode=Entra` intentionally fails startup. |
-| Tenant configuration model | Not present for Entra. |
-| App registration configuration | Not present. |
-| Durable `tenantId + oid` mapping | Not present. The current participant model is not a complete multi-tenant Entra identity mapping. |
-| App-role mapping | Role names/policies exist for demo auth, but no Entra token app-role mapping exists. |
+| Login page | Microsoft sign-in, recovery, unprovisioned and access-denied states implemented. |
+| MSAL frontend | Tenant-specific authority, redirect login and silent API token acquisition implemented. |
+| JWT validation backend | Tenant-specific JWT bearer validates signature, issuer, API audience, lifetime, `tid` and `oid`. |
+| Tenant configuration model | `Authentication:Entra` requires TenantId, explicit API Audience and HTTPS AuthorityHost. |
+| App registration configuration | SPA client ID/scope and API audience are separate explicit settings; no secret is required for API token validation. |
+| Durable `tenantId + oid` mapping | Existing `ParticipantExternalIdentity` is reused read-only; login never auto-provisions. |
+| App-role mapping | Active verified `(tenantId, oid)` Participant resolution grants `Quest.Participant` without an Entra Participant app role; only the exact validated-token `Quest.Manager` app role adds Manager capability. |
 | Development/Test demo-auth isolation | Implemented and tested fail-closed. |
-| Tests | Strong Step 5A/demo tests; no real Entra integration tests. |
+| Tests | Signed JWT middleware, SQL identity resolution, role/policy/profile and Demo isolation coverage implemented; live tenant smoke pending. |
 
-Conclusion: Step 5A is complete; real Entra Step 5B is **not started** and production-only for the current demo plan.
+Conclusion: Entra frontend/backend code is **READY**. Live Entra tenant/app registration, consent, user provisioning and smoke testing are **PENDING EXTERNAL CONFIGURATION**.
 
 ### E2E and Regression
 
@@ -197,7 +197,7 @@ Conclusion: Step 5A is complete; real Entra Step 5B is **not started** and produ
 
 ### MEDIUM
 
-1. **Real Entra and tenant/app registration are completely outside the tested runtime.** This is acceptable for the local demo but remains a substantial production dependency.
+1. **Live Entra tenant/app activation remains outside the tested runtime.** The code is implemented and locally validated, but real registration, consent, role assignment, participant provisioning and smoke validation remain production dependencies.
 2. **Production attachments cannot be enabled safely yet.** The production malware scanner is intentionally absent/disabled.
 3. **Persistence restart automation is designed but not executable.** Seeder/migration behavior is tested below the full Compose restart level.
 4. **Teams readiness depends on external configuration.** Business rules and architecture are complete, but implementation has not started and tenant/app registration, destinations and durable private-recipient mapping are not ready. It must not enter the immediate demo critical path.
@@ -262,7 +262,7 @@ Conclusion: Step 5A is complete; real Entra Step 5B is **not started** and produ
 ### C. Defer immediately
 
 - Teams integration.
-- Real Entra from the local demo.
+- Live Entra tenant activation from the local demo; retain deterministic Demo authentication locally.
 - Advanced analytics.
 - Advanced Raid capabilities.
 - Team leaderboard.
@@ -276,17 +276,17 @@ Conclusion: Step 5A is complete; real Entra Step 5B is **not started** and produ
 3. Fix only defects that break integration/demo continuity.
 4. Declare the demo release and capture evidence.
 5. After demo, decide whether to activate BA-017 Teams implementation and obtain tenant/configuration readiness.
-6. Begin the production track: Entra, production blob/scanner, CI/CD and Azure deployment.
+6. Begin the production track: live Entra activation, production blob/scanner, CI/CD and Azure deployment.
 
 ### E. Teams and Entra in the next demo
 
 - **Teams: DEFER.** No implementation exists.
-- **Entra: DEFER.** Step 5B is not started; demo authentication is already fit for the local story.
+- **Entra live activation: DEFER.** Step 5B code is implemented and code-ready subject to final review; real tenant configuration and smoke validation remain pending. Demo authentication remains the local story.
 
 ### F. Work that should stop
 
 - Do not expand Raid beyond BA-016 MVP.
-- Do not start Teams, Entra, analytics, team scoring, evidence purge or advanced Raid work before the demo release.
+- Do not activate live Teams/Entra or start analytics, team scoring, evidence purge or advanced Raid work before the demo release.
 - Do not add new feature-development work before canonical E2E. Raid and Cycle focused suites have already proven their detailed behavior.
 
 ## Discussed but Not Formally Approved for Delivery
