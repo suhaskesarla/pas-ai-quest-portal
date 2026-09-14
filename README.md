@@ -26,3 +26,9 @@ The current program runs through a Teams channel plus a manually-maintained Exce
 ## A note on source material
 
 The raw evidence this spec was built from (a Teams chat export and real score-sheet CSVs, both containing colleagues' names and internal conversations) is **deliberately not stored in this repo**, even though it's private. If you need to reference it, it's kept locally outside version control.
+
+## Azure App Service POC
+
+The separate personal/test POC uses App Service and an Azure DevOps deployment pipeline. It does not change the frozen corporate Production design of Azure Static Web Apps for the frontend and GitHub Actions for CI/CD.
+
+See [Azure POC deployment](README-AZURE-DEPLOYMENT.md) and the [implementation guide](docs/infra_deploy/AZURE_POC_IMPLEMENTATION.md). Entra tenant setup and live validation remain external prerequisites.

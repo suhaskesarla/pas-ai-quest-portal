@@ -1,0 +1,443 @@
+trigger: none
+pr: none
+
+parameters:
+- name: action
+  displayName: Action
+  type: string
+  default: full
+  values:
+  - provision
+  - deploy
+  - full
+  - destroy
+
+- name: azureServiceConnection
+  displayName: Azure DevOps ARM service connection
+  type: string
+  default: CHANGE_ME_AZURE_SERVICE_CONNECTION
+
+- name: environmentName
+  displayName: Environment
+  type: string
+  default: poc
+  values:
+  - poc
+  - dev
+  - uat
+
+- name: location
+  displayName: Azure region
+  type: string
+  default: australiaeast
+
+- name: nameSuffix
+  displayName: Globally unique short suffix
+  type: string
+  default: CHANGE_ME
+
+- name: appServiceSku
+  displayName: App Service Plan SKU
+  type: string
+  default: F1
+
+- name: useFreeSql
+  displayName: Use Azure SQL free database offer
+  type: boolean
+  default: true
+
+- name: runTests
+  displayName: Run automated tests before deployment
+  type: boolean
+  default: true
+
+- name: runMigrations
+  displayName: Run EF Core migrations
+  type: boolean
+  default: true
+
+- name: confirmDestroy
+  displayName: Type DELETE to allow resource deletion
+  type: string
+  default: NO
+
+# App setting names match src/api/appsettings.json and Program.cs.
+- name: apiAuthModeSetting
+  type: string
+  default: Authentication__Mode
+
+- name: apiTenantSetting
+  type: string
+  default: Authentication__Entra__TenantId
+
+- name: apiAudienceSetting
+  type: string
+  default: Authentication__Entra__Audience
+
+- name: apiScopeSetting
+  type: string
+  default: Authentication__Entra__RequiredScope
+
+- name: storageConnectionSetting
+  type: string
+  default: Storage__ConnectionString
+
+- name: portalBaseUrlSetting
+  type: string
+  default: Notifications__PortalBaseUrl
+
+- name: sqlConnectionStringSetting
+  type: string
+  default: ConnectionStrings__QuestDatabase
+
+variables:
+- name: resourceGroupName
+  value: rg-pas-ai-quest-${{ parameters.environmentName }}
+
+- name: apiAppName
+  value: app-pas-ai-quest-api-${{ parameters.environmentName }}-${{ parameters.nameSuffix }}
+
+- name: webAppName
+  value: app-pas-ai-quest-web-${{ parameters.environmentName }}-${{ parameters.nameSuffix }}
+
+- name: sqlServerName
+  value: sql-pas-ai-quest-${{ parameters.environmentName }}-${{ parameters.nameSuffix }}
+
+- name: sqlDatabaseName
+  value: pasaiquest
+
+- name: sqlAdminLogin
+  value: pasadmin
+
+- name: storageAccountName
+  # Azure Storage: lowercase alphanumeric only, <=24 chars.
+  value: stpasq${{ parameters.environmentName }}${{ parameters.nameSuffix }}
+
+- name: keyVaultName
+  value: kv-pasq-${{ parameters.environmentName }}-${{ parameters.nameSuffix }}
+
+stages:
+
+# ============================================================
+# STAGE 1 — PROVISION
+# ============================================================
+- stage: Provision
+  displayName: 1 - Provision Azure infrastructure
+  condition: or(eq('${{ parameters.action }}', 'provision'), eq('${{ parameters.action }}', 'full'))
+  jobs:
+  - job: ProvisionAzure
+    displayName: Provision with Bicep
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+
+    - task: AzureCLI@2
+      displayName: Validate input and register providers
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: pscore
+        scriptLocation: inlineScript
+        inlineScript: |
+          $ErrorActionPreference = 'Stop'
+
+          if ('${{ parameters.nameSuffix }}' -eq 'CHANGE_ME') {
+            throw "Set nameSuffix to a short globally unique value, for example suhas01."
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:SQL_ADMIN_PASSWORD)) {
+            throw "Create the secret pipeline variable SQL_ADMIN_PASSWORD before provisioning."
+          }
+
+          $providers = @(
+            'Microsoft.Web',
+            'Microsoft.Sql',
+            'Microsoft.Storage',
+            'Microsoft.KeyVault',
+            'Microsoft.Insights',
+            'Microsoft.OperationalInsights'
+          )
+
+          foreach ($provider in $providers) {
+            Write-Host "Registering $provider ..."
+            az provider register --namespace $provider --wait --only-show-errors | Out-Null
+          }
+      env:
+        SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
+
+    - task: AzureCLI@2
+      displayName: Deploy Bicep
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: pscore
+        scriptLocation: inlineScript
+        inlineScript: |
+          $ErrorActionPreference = 'Stop'
+
+          $freeSql = '${{ parameters.useFreeSql }}'.ToLowerInvariant()
+
+          az deployment sub create `
+            --name "pas-ai-quest-${{ parameters.environmentName }}-$(Build.BuildId)" `
+            --location '${{ parameters.location }}' `
+            --template-file '$(Build.SourcesDirectory)/infra/main.bicep' `
+            --parameters '$(Build.SourcesDirectory)/infra/poc.parameters.json' `
+            --parameters `
+              location='${{ parameters.location }}' `
+              environmentName='${{ parameters.environmentName }}' `
+              nameSuffix='${{ parameters.nameSuffix }}' `
+              appServiceSku='${{ parameters.appServiceSku }}' `
+              useFreeSql=$freeSql `
+              sqlAdminLogin='$(sqlAdminLogin)' `
+              sqlAdminPassword="$env:SQL_ADMIN_PASSWORD" `
+            --only-show-errors
+
+          Write-Host ""
+          Write-Host "Provisioned:"
+          Write-Host "  Resource Group : $(resourceGroupName)"
+          Write-Host "  Web App        : $(webAppName)"
+          Write-Host "  API App        : $(apiAppName)"
+          Write-Host "  SQL Server     : $(sqlServerName)"
+          Write-Host "  SQL Database   : $(sqlDatabaseName)"
+      env:
+        SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
+
+# ============================================================
+# STAGE 2 — BUILD + TEST + MIGRATE + DEPLOY
+# ============================================================
+- stage: Deploy
+  displayName: 2 - Build and deploy PAS AI Quest
+  dependsOn:
+  - Provision
+  # Deploy can run even when Provision was intentionally skipped.
+  condition: |
+    and(
+      or(eq('${{ parameters.action }}', 'deploy'), eq('${{ parameters.action }}', 'full')),
+      in(dependencies.Provision.result, 'Succeeded', 'SucceededWithIssues', 'Skipped')
+    )
+  jobs:
+  - job: BuildDeploy
+    displayName: Build, test, migrate and deploy
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+
+    - task: UseDotNet@2
+      displayName: Install .NET SDK
+      inputs:
+        packageType: sdk
+        version: 8.x
+
+    - task: NodeTool@0
+      displayName: Install Node.js
+      inputs:
+        versionSpec: 24.x
+
+    - pwsh: |
+        $ErrorActionPreference = 'Stop'
+        dotnet restore
+        dotnet build --configuration Release --no-restore
+      displayName: Build backend
+
+    - pwsh: |
+        $ErrorActionPreference = 'Stop'
+        $container = 'pas-ai-quest-test-sql-$(Build.BuildId)'
+        if ('${{ parameters.runTests }}' -ne 'true') {
+          Write-Host "Backend tests skipped by pipeline parameter."
+          exit 0
+        }
+        try {
+          docker run --detach --name $container --publish 1433:1433 `
+            --env ACCEPT_EULA=Y --env MSSQL_SA_PASSWORD=$env:SQL_ADMIN_PASSWORD `
+            mcr.microsoft.com/mssql/server:2022-latest | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Could not start test SQL Server.' }
+          $ready = $false
+          for ($attempt = 0; $attempt -lt 60; $attempt++) {
+            if ((docker logs $container 2>&1) -match 'SQL Server is now ready for client connections') { $ready = $true; break }
+            Start-Sleep -Seconds 2
+          }
+          if (-not $ready) { throw 'Test SQL Server did not become ready.' }
+          $env:TEST_SQL_CONNECTION = "Server=localhost,1433;Database=master;User Id=sa;Password=$($env:SQL_ADMIN_PASSWORD);TrustServerCertificate=True"
+          dotnet test --configuration Release --no-build
+          if ($LASTEXITCODE -ne 0) { throw 'Backend tests failed.' }
+        }
+        finally { docker rm --force $container 2>$null | Out-Null }
+      displayName: Test backend
+      env:
+        SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
+
+    - pwsh: |
+        $ErrorActionPreference = 'Stop'
+        Set-Location '$(Build.SourcesDirectory)/src/web'
+        npm ci
+        if ('${{ parameters.runTests }}' -eq 'true') {
+          npm test
+        }
+        npm run build
+      displayName: Build and test frontend
+      env:
+        VITE_ENTRA_TENANT_ID: $(ENTRA_TENANT_ID)
+        VITE_ENTRA_CLIENT_ID: $(ENTRA_SPA_CLIENT_ID)
+        VITE_ENTRA_REDIRECT_URI: https://$(webAppName).azurewebsites.net
+        VITE_ENTRA_API_SCOPE: $(ENTRA_API_SCOPE)
+        VITE_APP_ENVIRONMENT: Production
+
+    - pwsh: |
+        $ErrorActionPreference = 'Stop'
+
+        $apiOut = '$(Build.ArtifactStagingDirectory)/api'
+        if (Test-Path $apiOut) { Remove-Item $apiOut -Recurse -Force }
+
+        dotnet publish `
+          '$(Build.SourcesDirectory)/src/api/PAS.AIQuestPortal.Api.csproj' `
+          --configuration Release `
+          --output $apiOut
+      displayName: Publish API
+
+    - task: ArchiveFiles@2
+      displayName: Package API
+      inputs:
+        rootFolderOrFile: $(Build.ArtifactStagingDirectory)/api
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: $(Build.ArtifactStagingDirectory)/pas-api.zip
+        replaceExistingArchive: true
+
+    - pwsh: |
+        $ErrorActionPreference = 'Stop'
+
+        $dist = '$(Build.SourcesDirectory)/src/web/dist'
+        if (-not (Test-Path $dist)) {
+          throw "Frontend dist directory was not created."
+        }
+
+        Copy-Item `
+          '$(Build.SourcesDirectory)/infra/runtime/static-server.mjs' `
+          "$dist/static-server.mjs" `
+          -Force
+      displayName: Add SPA static server
+
+    - task: ArchiveFiles@2
+      displayName: Package frontend
+      inputs:
+        rootFolderOrFile: $(Build.SourcesDirectory)/src/web/dist
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: $(Build.ArtifactStagingDirectory)/pas-web.zip
+        replaceExistingArchive: true
+
+    - task: AzureCLI@2
+      displayName: Configure Azure application settings
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: pscore
+        scriptLocation: scriptPath
+        scriptPath: $(Build.SourcesDirectory)/scripts/configure-app-services.ps1
+        arguments: >
+          -ResourceGroupName "$(resourceGroupName)"
+          -ApiAppName "$(apiAppName)"
+          -WebAppName "$(webAppName)"
+          -SqlServerName "$(sqlServerName)"
+          -SqlDatabaseName "$(sqlDatabaseName)"
+          -SqlAdminLogin "$(sqlAdminLogin)"
+          -SqlConnectionStringSetting "${{ parameters.sqlConnectionStringSetting }}"
+          -StorageAccountName "$(storageAccountName)"
+          -AuthModeSetting "${{ parameters.apiAuthModeSetting }}"
+          -TenantSetting "${{ parameters.apiTenantSetting }}"
+          -AudienceSetting "${{ parameters.apiAudienceSetting }}"
+          -ScopeSetting "${{ parameters.apiScopeSetting }}"
+          -StorageConnectionSetting "${{ parameters.storageConnectionSetting }}"
+          -PortalBaseUrlSetting "${{ parameters.portalBaseUrlSetting }}"
+          -EntraTenantId "$(ENTRA_TENANT_ID)"
+          -EntraApiAudience "$(ENTRA_API_AUDIENCE)"
+          -EntraApiScopeName "$(ENTRA_API_SCOPE_NAME)"
+      env:
+        SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
+
+    - task: AzureCLI@2
+      displayName: Run EF Core migrations
+      condition: and(succeeded(), eq('${{ parameters.runMigrations }}', 'true'))
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: pscore
+        scriptLocation: scriptPath
+        scriptPath: $(Build.SourcesDirectory)/scripts/migrate-database.ps1
+        arguments: >
+          -ResourceGroupName "$(resourceGroupName)"
+          -SqlServerName "$(sqlServerName)"
+          -SqlDatabaseName "$(sqlDatabaseName)"
+          -SqlAdminLogin "$(sqlAdminLogin)"
+          -ProjectPath "$(Build.SourcesDirectory)/src/api/PAS.AIQuestPortal.Api.csproj"
+      env:
+        SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
+
+    - task: AzureCLI@2
+      displayName: Deploy API
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: pscore
+        scriptLocation: inlineScript
+        inlineScript: |
+          $ErrorActionPreference = 'Stop'
+          az webapp deploy `
+            --resource-group '$(resourceGroupName)' `
+            --name '$(apiAppName)' `
+            --src-path '$(Build.ArtifactStagingDirectory)/pas-api.zip' `
+            --type zip `
+            --clean true `
+            --restart true `
+            --only-show-errors
+
+    - task: AzureCLI@2
+      displayName: Deploy frontend
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: pscore
+        scriptLocation: inlineScript
+        inlineScript: |
+          $ErrorActionPreference = 'Stop'
+          az webapp deploy `
+            --resource-group '$(resourceGroupName)' `
+            --name '$(webAppName)' `
+            --src-path '$(Build.ArtifactStagingDirectory)/pas-web.zip' `
+            --type zip `
+            --clean true `
+            --restart true `
+            --only-show-errors
+
+    - task: AzureCLI@2
+      displayName: Smoke check
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: pscore
+        scriptLocation: scriptPath
+        scriptPath: $(Build.SourcesDirectory)/scripts/smoke-test.ps1
+        arguments: >
+          -WebUrl "https://$(webAppName).azurewebsites.net"
+          -ApiUrl "https://$(apiAppName).azurewebsites.net"
+
+# ============================================================
+# DESTROY — EXPLICITLY GUARDED
+# ============================================================
+- stage: Destroy
+  displayName: Destroy POC Azure resources
+  condition: eq('${{ parameters.action }}', 'destroy')
+  jobs:
+  - job: DestroyAzure
+    displayName: Delete resource group
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+
+    - task: AzureCLI@2
+      displayName: Guarded POC cleanup
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: pscore
+        scriptLocation: scriptPath
+        scriptPath: $(Build.SourcesDirectory)/scripts/destroy-poc.ps1
+        arguments: >
+          -ResourceGroupName "$(resourceGroupName)"
+          -KeyVaultName "$(keyVaultName)"
+          -Confirm "${{ parameters.confirmDestroy }}"
