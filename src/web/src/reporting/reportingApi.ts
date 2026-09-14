@@ -9,7 +9,7 @@ export class ReportingApiError extends Error {
 
 async function request<T>(path: string): Promise<T> {
   let response: Response
-  try { response = await fetch(path, { credentials: 'same-origin' }) }
+  try { response = await apiFetch(path, { credentials: 'same-origin' }) }
   catch { throw new ReportingApiError(0, 'Network request failed.') }
   if (!response.ok) {
     const problem = await response.json().catch(() => null) as { detail?: string; title?: string } | null
@@ -39,3 +39,4 @@ export function reportingErrorMessage(error: unknown) {
   if (error.status === 0) return 'Network connection failed. Check your connection and try again.'
   return error.detail || 'The reporting view could not be loaded.'
 }
+import { apiFetch } from '../auth/apiClient'

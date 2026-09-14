@@ -18,7 +18,7 @@ specification.
 | **React frontend**   | →   | ASP.NET Core Web API over HTTPS                                |
 | **ASP.NET Core API** | →   | Azure SQL for business data                                    |
 | **ASP.NET Core API** | →   | Private Azure Blob Storage for evidence files                  |
-| **ASP.NET Core API** | →   | Microsoft Entra ID for identity and app roles                  |
+| **ASP.NET Core API** | →   | Microsoft Entra ID for identity and the Quest.Manager app role |
 | **ASP.NET Core API** | →   | Application Insights for logs, errors and performance          |
 | **Deployment**       | →   | GitHub Actions + Bicep for repeatable build and infrastructure |
 
@@ -32,7 +32,7 @@ Storage owns binary evidence files.
 |----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------|
 | Azure SQL            | Participants, cycle enrollment, teams, challenge rules, submissions, audit events, XP ledger, award categories, raid entitlements/usage, reporting metadata | Queryable, relational, transactional source of truth |
 | Azure Blob Storage   | Screenshots, documents, videos and other uploaded evidence                                                                                                  | Binary files stay outside SQL and remain private     |
-| Entra ID             | User identity and Quest.Participant / Quest.Manager app-role assignment                                                                                     | Company-native sign-in and server-side authorization |
+| Entra ID             | User identity and the Quest.Manager app-role assignment                                                                                                     | Company-native sign-in and manager authorization     |
 | Application Insights | Operational telemetry, errors, traces and performance                                                                                                       | Production support and diagnostics                   |
 
 ## 3. Core Azure SQL data model
@@ -198,16 +198,23 @@ Users sign in with Microsoft Entra ID using MSAL. The frontend may hide
 manager-only controls for usability, but the API is the security
 boundary.
 
-- Quest.Participant: view challenges, submit work, view own activity,
-  view permitted leaderboard/team information.
+- Quest.Participant: valid Entra authentication with `(tenantId, oid)`
+  resolved through a verified `ParticipantExternalIdentity` mapping to an
+  active Participant. No Entra `Quest.Participant` app role is required.
+  This capability permits viewing challenges, submitting work, viewing own
+  activity, and viewing permitted leaderboard/team information.
 
-- Quest.Manager: create/manage challenges, review submissions,
-  award/correct XP, administer cycles and reporting.
+- Quest.Manager: all Participant requirements plus the exact
+  `Quest.Manager` app role in the validated Entra token. Manager implies
+  Participant and permits creating/managing challenges, reviewing
+  submissions, awarding/correcting XP, and administering cycles/reporting.
 
 - Manager-only API endpoints must reject participant tokens even if the
   request is manually crafted outside the UI.
 
-App roles are used instead of raw Entra group claims for authorization.
+The API resolves Participant capability from the active durable identity
+mapping and Manager capability from the validated Entra app role. Neither
+capability is derived from raw Entra group claims or self-selection.
 
 ## 9. End-to-end example: participant submission
 
@@ -267,7 +274,8 @@ Teams outage must never roll back challenge/submission data.
 | EF Core migrations           | Relational mapping and schema changes                      |
 | Azure Blob Storage           | Private evidence files                                     |
 | Microsoft Entra ID + MSAL    | Company sign-in                                            |
-| Entra app roles              | Participant vs Manager authorization                       |
+| Participant identity mapping | Participant authorization after Entra authentication       |
+| Quest.Manager Entra app role | Manager authorization after Participant resolution         |
 | Managed Identity / Key Vault | Service authentication and secret handling                 |
 | Application Insights         | Logs, errors, performance                                  |
 | Bicep                        | Infrastructure as code                                     |

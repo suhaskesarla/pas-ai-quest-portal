@@ -5,7 +5,7 @@ export class ChallengeAdminApiError extends Error {
 }
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
-  try { response = await fetch(path, { credentials: 'same-origin', ...init, headers: init?.body ? { 'Content-Type': 'application/json', ...init.headers } : init?.headers }) }
+  try { response = await apiFetch(path, { credentials: 'same-origin', ...init, headers: init?.body ? { 'Content-Type': 'application/json', ...init.headers } : init?.headers }) }
   catch { throw new ChallengeAdminApiError(0, 'NetworkFailure', 'Network request failed.') }
   if (!response.ok) {
     const problem = await response.json().catch(() => null) as { code?: string; title?: string; detail?: string; errors?: Record<string, string[]> } | null
@@ -25,3 +25,4 @@ export type ChallengeAdminApi = typeof challengeAdminApi
 export const adminError = (error: unknown) => error instanceof ChallengeAdminApiError
   ? error.status === 401 ? 'Your session has expired.' : error.status === 403 ? 'Manager authorization is required.' : error.message
   : 'Something went wrong. Please try again.'
+import { apiFetch } from '../auth/apiClient'

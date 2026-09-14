@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PAS.AIQuestPortal.Api.Configuration;
@@ -10,8 +12,35 @@ namespace PAS.AIQuestPortal.Api.Authentication;
 
 public static class QuestClaimTypes
 {
-    public const string ParticipantId = "urn:pas-ai-quest:participant-id";
+    public const string ParticipantId = "urn:pas-ai-quest:internal:participant-id";
     public const string DemoProfileKey = "urn:pas-ai-quest:demo-profile-key";
+    public const string DisplayName = "urn:pas-ai-quest:internal:display-name";
+    public const string Capability = "urn:pas-ai-quest:internal:capability";
+    public const string ResolutionComplete = "urn:pas-ai-quest:internal:resolution-complete";
+    public const string AccessDenied = "urn:pas-ai-quest:internal:access-denied";
+}
+
+public static class QuestInternalIdentity
+{
+    public const string AuthenticationType = "PAS.Internal";
+
+    public static ClaimsIdentity? Find(ClaimsPrincipal principal) => principal.Identities.FirstOrDefault(identity =>
+        string.Equals(identity.AuthenticationType, AuthenticationType, StringComparison.Ordinal));
+
+    public static bool HasCapability(ClaimsPrincipal principal, string capability) =>
+        Find(principal)?.HasClaim(QuestClaimTypes.Capability, capability) == true;
+
+    public static bool HasMarker(ClaimsPrincipal principal, string type) => Find(principal)?.HasClaim(type, "true") == true;
+
+    public static ClaimsIdentity CreateResolutionIdentity() => new([], AuthenticationType);
+
+    public static void AddResolvedClaims(ClaimsIdentity identity, Guid participantId, string displayName, IEnumerable<string> capabilities)
+    {
+        identity.AddClaim(new Claim(QuestClaimTypes.ParticipantId, participantId.ToString("D")));
+        identity.AddClaim(new Claim(QuestClaimTypes.DisplayName, displayName));
+        foreach (string capability in capabilities.Distinct(StringComparer.Ordinal))
+            identity.AddClaim(new Claim(QuestClaimTypes.Capability, capability));
+    }
 }
 
 public sealed record QuestUserIdentity(bool IsAuthenticated, Guid? ParticipantId, string? DisplayName, IReadOnlyList<string> Roles)
@@ -28,9 +57,14 @@ internal sealed class HttpQuestCurrentUser(IHttpContextAccessor accessor) : IQue
         get
         {
             ClaimsPrincipal? principal = accessor.HttpContext?.User;
-            if (principal?.Identity?.IsAuthenticated != true || !Guid.TryParse(principal.FindFirstValue(QuestClaimTypes.ParticipantId), out Guid participantId))
+            if (principal?.Identity?.IsAuthenticated != true)
                 return QuestUserIdentity.Anonymous;
-            return new(true, participantId, principal.Identity.Name, principal.FindAll(ClaimTypes.Role).Select(x => x.Value).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray());
+            ClaimsIdentity? internalIdentity = QuestInternalIdentity.Find(principal);
+            Guid? participantId = Guid.TryParse(internalIdentity?.FindFirst(QuestClaimTypes.ParticipantId)?.Value, out Guid parsed) ? parsed : null;
+            string? displayName = internalIdentity?.FindFirst(QuestClaimTypes.DisplayName)?.Value;
+            string[] roles = internalIdentity?.FindAll(QuestClaimTypes.Capability).Select(x => x.Value)
+                .Where(x => x is QuestRoles.Participant or QuestRoles.Manager).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray() ?? [];
+            return new(true, participantId, displayName, roles);
         }
     }
 }
@@ -72,7 +106,8 @@ internal sealed class DemoCookieEvents(IQuestIdentityResolver resolver) : Cookie
         string? profileKey = context.Principal?.FindFirstValue(QuestClaimTypes.DemoProfileKey);
         string? subject = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
         QuestResolvedIdentity? identity = profileKey is null || subject is null ? null : await resolver.ResolveAsync(new(AuthenticationModes.Demo, subject, ProfileKey: profileKey), context.HttpContext.RequestAborted);
-        if (identity is null || context.Principal?.FindFirstValue(QuestClaimTypes.ParticipantId) != identity.ParticipantId.ToString())
+        ClaimsIdentity? trusted = context.Principal is null ? null : QuestInternalIdentity.Find(context.Principal);
+        if (identity is null || trusted?.FindFirst(QuestClaimTypes.ParticipantId)?.Value != identity.ParticipantId.ToString("D"))
         {
             context.RejectPrincipal();
             await context.HttpContext.SignOutAsync();
@@ -89,9 +124,21 @@ public static class QuestAuthenticationStartupValidator
     {
         if (string.IsNullOrWhiteSpace(options.Mode)) throw new InvalidOperationException("Authentication:Mode is required; authentication never falls back to Demo.");
         if (string.Equals(options.Mode, AuthenticationModes.Entra, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Authentication:Mode=Entra is reserved for Step 5B and is not implemented in Step 5A.");
+        {
+            if (!Guid.TryParse(options.Entra.TenantId, out Guid tenantId) || tenantId == Guid.Empty)
+                throw new InvalidOperationException("Authentication:Entra:TenantId must be a non-empty GUID.");
+            if (string.IsNullOrWhiteSpace(options.Entra.Audience) || options.Entra.Audience.Any(char.IsWhiteSpace))
+                throw new InvalidOperationException("Authentication:Entra:Audience is required and must identify the PAS AI Quest API application.");
+            if (string.IsNullOrWhiteSpace(options.Entra.RequiredScope) || options.Entra.RequiredScope.Any(char.IsWhiteSpace))
+                throw new InvalidOperationException("Authentication:Entra:RequiredScope is required and must be the delegated API scope name.");
+            if (!Uri.TryCreate(options.Entra.AuthorityHost, UriKind.Absolute, out Uri? authority) || authority.Scheme != Uri.UriSchemeHttps ||
+                !string.IsNullOrEmpty(authority.UserInfo) || authority.AbsolutePath is not ("" or "/") ||
+                !string.IsNullOrEmpty(authority.Query) || !string.IsNullOrEmpty(authority.Fragment))
+                throw new InvalidOperationException("Authentication:Entra:AuthorityHost must be an absolute HTTPS authority host.");
+            return;
+        }
         if (!string.Equals(options.Mode, AuthenticationModes.Demo, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException($"Unknown Authentication:Mode '{options.Mode}'. Supported in Step 5A: Demo.");
+            throw new InvalidOperationException($"Unknown Authentication:Mode '{options.Mode}'. Supported modes: Demo and Entra.");
         if (environmentName is not ("Development" or "Test") || !options.Demo.AllowedEnvironments.Contains(environmentName, StringComparer.Ordinal))
             throw new InvalidOperationException($"Demo authentication is not allowed in environment '{environmentName}'. Explicitly allowlist Development or Test only.");
         if (options.Demo.Profiles.Length == 0) throw new InvalidOperationException("Authentication:Demo:Profiles must contain at least one synthetic profile.");
@@ -116,6 +163,7 @@ public static class QuestAuthenticationStartupValidator
 public static class QuestAuthenticationExtensions
 {
     public const string DemoCookieScheme = "QuestDemoCookie";
+    public const string EntraBearerScheme = "QuestEntraBearer";
 
     public static void AddQuestAuthentication(this WebApplicationBuilder builder)
     {
@@ -125,31 +173,82 @@ public static class QuestAuthenticationExtensions
         builder.Services.AddOptions<QuestAuthenticationOptions>().Bind(builder.Configuration.GetSection(QuestAuthenticationOptions.SectionName)).ValidateDataAnnotations().ValidateOnStart();
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<IQuestCurrentUser, HttpQuestCurrentUser>();
-        builder.Services.AddSingleton<DemoProfileCatalog>();
-        builder.Services.AddScoped<IQuestIdentityResolver, DemoQuestIdentityResolver>();
-        builder.Services.AddScoped<DemoCookieEvents>();
-        builder.Services.AddAuthentication(DemoCookieScheme).AddCookie(DemoCookieScheme, cookie =>
+        if (string.Equals(options.Mode, AuthenticationModes.Demo, StringComparison.OrdinalIgnoreCase))
         {
-            cookie.Cookie.Name = "PasAiQuestDemo";
-            cookie.Cookie.HttpOnly = true;
-            cookie.Cookie.SameSite = SameSiteMode.Strict;
-            cookie.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-            cookie.Cookie.Path = "/";
-            cookie.SlidingExpiration = false;
-            cookie.ExpireTimeSpan = TimeSpan.FromHours(8);
-            cookie.EventsType = typeof(DemoCookieEvents);
-        });
+            builder.Services.AddSingleton<DemoProfileCatalog>();
+            builder.Services.AddScoped<IQuestIdentityResolver, DemoQuestIdentityResolver>();
+            builder.Services.AddScoped<DemoCookieEvents>();
+            builder.Services.AddAuthentication(DemoCookieScheme).AddCookie(DemoCookieScheme, cookie =>
+            {
+                cookie.Cookie.Name = "PasAiQuestDemo";
+                cookie.Cookie.HttpOnly = true;
+                cookie.Cookie.SameSite = SameSiteMode.Strict;
+                cookie.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                cookie.Cookie.Path = "/";
+                cookie.SlidingExpiration = false;
+                cookie.ExpireTimeSpan = TimeSpan.FromHours(8);
+                cookie.EventsType = typeof(DemoCookieEvents);
+            });
+        }
+        else
+        {
+            Guid tenantId = Guid.Parse(options.Entra.TenantId);
+            string requiredScope = options.Entra.RequiredScope;
+            string authority = $"{options.Entra.AuthorityHost.TrimEnd('/')}/{tenantId:D}/v2.0";
+            builder.Services.AddScoped<IClaimsTransformation, EntraQuestClaimsTransformation>();
+            builder.Services.AddAuthentication(EntraBearerScheme).AddJwtBearer(EntraBearerScheme, bearer =>
+            {
+                bearer.Authority = authority;
+                bearer.Audience = options.Entra.Audience;
+                bearer.MapInboundClaims = false;
+                bearer.IncludeErrorDetails = false;
+                bearer.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    RequireExpirationTime = true,
+                    RequireSignedTokens = true,
+                    NameClaimType = "name",
+                    RoleClaimType = ClaimTypes.Role
+                };
+                bearer.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = context =>
+                    {
+                        string? tid = context.Principal?.FindFirstValue("tid");
+                        string? oid = context.Principal?.FindFirstValue("oid");
+                        if (!Guid.TryParse(tid, out Guid tokenTenant) || tokenTenant != tenantId)
+                            context.Fail("The access token tenant is missing or is not the configured tenant.");
+                        else if (!Guid.TryParse(oid, out Guid objectId) || objectId == Guid.Empty)
+                            context.Fail("The access token does not contain a valid user object ID.");
+                        else if (!(context.Principal?.FindFirstValue("scp") ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains(requiredScope, StringComparer.Ordinal))
+                            context.Fail("The access token is not a delegated PAS AI Quest API token with the required scope.");
+                        return Task.CompletedTask;
+                    }
+                };
+            });
+        }
         builder.Services.AddAuthorization(auth =>
         {
             auth.AddPolicy(QuestPolicies.Authenticated, policy => policy.RequireAuthenticatedUser());
-            auth.AddPolicy(QuestPolicies.Participant, policy => policy.RequireAuthenticatedUser().RequireRole(QuestRoles.Participant));
-            auth.AddPolicy(QuestPolicies.Manager, policy => policy.RequireAuthenticatedUser().RequireRole(QuestRoles.Manager));
+            auth.AddPolicy(QuestPolicies.Participant, policy => policy.RequireAuthenticatedUser().RequireAssertion(context => QuestInternalIdentity.HasCapability(context.User, QuestRoles.Participant)));
+            auth.AddPolicy(QuestPolicies.Manager, policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
+                QuestInternalIdentity.HasCapability(context.User, QuestRoles.Participant) && QuestInternalIdentity.HasCapability(context.User, QuestRoles.Manager)));
         });
     }
 
     public static void MapQuestAuthenticationEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/auth/me", (IQuestCurrentUser currentUser) => Results.Ok(currentUser.Identity));
+        QuestAuthenticationOptions options = app.Services.GetRequiredService<IOptions<QuestAuthenticationOptions>>().Value;
+        RouteHandlerBuilder profile = app.MapGet("/api/auth/me", (HttpContext http, IQuestCurrentUser currentUser) =>
+            QuestInternalIdentity.HasMarker(http.User, QuestClaimTypes.AccessDenied) ? Results.Forbid() : Results.Ok(currentUser.Identity));
+        if (string.Equals(options.Mode, AuthenticationModes.Entra, StringComparison.OrdinalIgnoreCase))
+        {
+            profile.RequireAuthorization(QuestPolicies.Authenticated);
+            return;
+        }
         app.MapGet("/api/auth/demo/profiles", (DemoProfileCatalog catalog) => Results.Ok(catalog.Profiles.Where(x => x.Enabled).OrderBy(x => x.Key).Select(x => new { x.Key, x.Label })));
         app.MapPost("/api/auth/demo/session", async (DemoSessionRequest request, HttpContext http, DemoProfileCatalog catalog, IQuestIdentityResolver resolver) =>
         {
@@ -159,11 +258,17 @@ public static class QuestAuthenticationExtensions
             if (profile is null || identity is null) return Results.Unauthorized();
             var claims = new List<Claim>
             {
-                new(ClaimTypes.NameIdentifier, identity.Subject), new(ClaimTypes.Name, identity.DisplayName),
-                new(QuestClaimTypes.ParticipantId, identity.ParticipantId.ToString()), new(QuestClaimTypes.DemoProfileKey, profile.Key)
+                new(ClaimTypes.NameIdentifier, identity.Subject), new(ClaimTypes.Name, identity.DisplayName), new(QuestClaimTypes.DemoProfileKey, profile.Key)
             };
-            claims.AddRange(identity.Roles.Select(x => new Claim(ClaimTypes.Role, x)));
-            await http.SignInAsync(DemoCookieScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, DemoCookieScheme, ClaimTypes.Name, ClaimTypes.Role)));
+            var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, DemoCookieScheme, ClaimTypes.Name, ClaimTypes.Role));
+            ClaimsIdentity trusted = QuestInternalIdentity.CreateResolutionIdentity();
+            trusted.AddClaim(new Claim(QuestClaimTypes.ResolutionComplete, "true"));
+            string[] capabilities = identity.Roles.Contains(QuestRoles.Manager, StringComparer.Ordinal)
+                ? identity.Roles.Append(QuestRoles.Participant).ToArray()
+                : identity.Roles.ToArray();
+            QuestInternalIdentity.AddResolvedClaims(trusted, identity.ParticipantId, identity.DisplayName, capabilities);
+            principal.AddIdentity(trusted);
+            await http.SignInAsync(DemoCookieScheme, principal);
             return Results.NoContent();
         });
         app.MapDelete("/api/auth/demo/session", async (HttpContext http) =>

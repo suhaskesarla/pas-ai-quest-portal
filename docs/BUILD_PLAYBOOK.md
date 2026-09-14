@@ -34,7 +34,8 @@ Per `PORTAL_SPEC.md` §14, the reference architecture is frozen:
 Frontend        React + TypeScript
 Backend         ASP.NET Core Web API
 Database        Azure SQL, EF Core migrations
-Authentication  Entra ID / MSAL, Entra app roles
+Authentication  Entra ID / MSAL, mapped Participant identity;
+                Quest.Manager Entra app role for manager access
 Files           Private Azure Blob Storage, user-delegation SAS
 Hosting         Azure Static Web Apps (frontend) + Azure App Service (API)
 Observability   Application Insights
@@ -91,7 +92,7 @@ This is the strongest available proof the data model is correct. Synthetic fixtu
 
 ### Step 5 — Entra authentication + server-side authorization
 
-> "Add Entra ID (Azure AD) authentication via MSAL, per spec §12. Role must be derived from Entra app roles (`Quest.Participant`, `Quest.Manager`), never self-selected and never from raw group-membership claims. Every manager-only API endpoint must reject a participant token, checked server-side — not just hidden in the UI."
+> "Add Entra ID (Azure AD) authentication via MSAL, per spec §12. Grant `Quest.Participant` only after valid Entra authentication resolves `(tenantId, oid)` through a verified `ParticipantExternalIdentity` mapping to an active Participant; an Entra `Quest.Participant` app role is not required. Grant `Quest.Manager` only when those Participant requirements hold and the validated token contains the exact `Quest.Manager` Entra app role. Neither capability is self-selected or derived from raw group-membership claims. Every manager-only API endpoint must reject a participant token, checked server-side — not just hidden in the UI."
 
 **Check-in:** actually call a manager-only endpoint (approve a submission, award XP) with a participant token and confirm it's rejected. Don't accept "the UI looks right" as proof.
 

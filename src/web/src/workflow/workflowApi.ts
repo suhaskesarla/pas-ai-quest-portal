@@ -10,7 +10,7 @@ export class WorkflowApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
   try {
-    response = await fetch(path, {
+    response = await apiFetch(path, {
       credentials: 'same-origin',
       ...init,
       headers: init?.body && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json', ...init.headers } : init?.headers,
@@ -57,3 +57,4 @@ export function workflowErrorMessage(error: unknown) {
   if (error.status === 0) return 'Network connection failed. Check your connection and try again.'
   return error.detail || 'The request could not be completed. Please try again.'
 }
+import { apiFetch } from '../auth/apiClient'

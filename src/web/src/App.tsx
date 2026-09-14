@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from './auth/AuthContext'
+import { AccessDeniedPage, BrandedAuthLoading, LoginPage, SessionErrorPage } from './auth/LoginPage'
 import { QUEST_MANAGER_ROLE, QUEST_PARTICIPANT_ROLE } from './auth/types'
 import { ChallengeAdministration } from './challenge-admin/ChallengeAdministration'
 import { challengeAdminApi, type ChallengeAdminApi } from './challenge-admin/challengeAdminApi'
@@ -81,7 +82,7 @@ function ManagerDashboard({ loading, error, reviewCount, onNavigate }: { loading
 }
 
 function AuthenticatedShell({ api, reports, challengeAdmin, scoresheet, cycleAdmin, raidAdmin }: { api: WorkflowApi; reports: ReportingApi; challengeAdmin: ChallengeAdminApi; scoresheet: ScoresheetApi; cycleAdmin: CycleAdminApi; raidAdmin: RaidAdminApi }) {
-  const { currentUser, demoModeAvailable, switching } = useAuth()
+  const { currentUser, demoModeAvailable, switching, mode, logout } = useAuth()
   const roles = new Set(currentUser?.roles ?? [])
   const isParticipant = roles.has(QUEST_PARTICIPANT_ROLE)
   const isManager = roles.has(QUEST_MANAGER_ROLE)
@@ -142,7 +143,7 @@ function AuthenticatedShell({ api, reports, challengeAdmin, scoresheet, cycleAdm
     {demoModeAvailable && <div className="demo-badge">DEVELOPMENT · DEMO AUTH ACTIVE</div>}
     <main className="content">
       <header className="page-header"><div><p className="eyebrow">PAS AI QUEST</p><h1>{navigation.find((item) => item.id === activePage)?.label ?? 'Dashboard'}</h1></div>
-        <div className="identity" aria-label="Active identity"><span>Active identity</span><strong>{currentUser.displayName}</strong><div>{currentUser.roles.map((role) => <span className="role" key={role}>{readableRole(role)}</span>)}</div></div>
+        <div className="identity" aria-label="Active identity"><span>Active identity</span><strong>{currentUser.displayName}</strong><div>{currentUser.roles.map((role) => <span className="role" key={role}>{readableRole(role)}</span>)}</div>{mode === 'entra' && <button className="identity__signout" type="button" onClick={() => void logout()}>Sign out</button>}</div>
       </header>
       {notice && <div className="success-notice" role="status">{notice}</div>}
       {pageContent}
@@ -151,11 +152,16 @@ function AuthenticatedShell({ api, reports, challengeAdmin, scoresheet, cycleAdm
 }
 
 export function App({ api = workflowApi, reports = reportingApi, challengeAdmin = challengeAdminApi, scoresheet = scoresheetApi, cycleAdmin = cycleAdminApi, raidAdmin = raidAdminApi }: { api?: WorkflowApi; reports?: ReportingApi; challengeAdmin?: ChallengeAdminApi; scoresheet?: ScoresheetApi; cycleAdmin?: CycleAdminApi; raidAdmin?: RaidAdminApi }) {
-  const { status, error, demoModeAvailable, refreshCurrentUser } = useAuth()
-  if (status === 'loading') return <main className="state-page" aria-live="polite"><div className="spinner" /><h1>Confirming your identity…</h1></main>
+  const { status, error, mode, demoModeAvailable, refreshCurrentUser, login, logout } = useAuth()
+  if (status === 'initializing' || status === 'loading_profile' || status === 'session_recovery') return <BrandedAuthLoading text={status === 'loading_profile' ? 'Confirming your PAS AI Quest access…' : status === 'session_recovery' ? 'Restoring your Microsoft session…' : undefined} />
+  if (mode === 'entra' && status === 'authenticating') return <LoginPage signingIn error={null} onSignIn={() => undefined} />
+  if (mode === 'entra' && status === 'unauthenticated') return <LoginPage signingIn={false} error={error} onSignIn={() => void login()} />
+  if (mode === 'entra' && status === 'unprovisioned') return <AccessDeniedPage kind="unprovisioned" onSignOut={() => void logout()} />
+  if (mode === 'entra' && status === 'access_denied') return <AccessDeniedPage kind="forbidden" onSignOut={() => void logout()} />
+  if (mode === 'entra' && status === 'session_error') return <SessionErrorPage error={error ?? "We couldn't establish a valid PAS AI Quest session."} onRetry={() => void refreshCurrentUser().catch(() => undefined)} onSignOut={() => void logout()} />
   if (status === 'authenticated') return <AuthenticatedShell api={api} reports={reports} challengeAdmin={challengeAdmin} scoresheet={scoresheet} cycleAdmin={cycleAdmin} raidAdmin={raidAdmin} />
   return <main className="state-page">
     {demoModeAvailable && <DemoAuthControl onSwitched={() => undefined} />}
-    <section className="card state-card"><p className="eyebrow">PAS AI QUEST</p><h1>{status === 'unauthenticated' ? 'You are not signed in' : 'We could not confirm your identity'}</h1><p>{error ?? 'Use the approved authentication method to continue. Development users can choose a synthetic demo identity above.'}</p>{status === 'error' && <button className="button" type="button" onClick={() => void refreshCurrentUser().catch(() => undefined)}>Try again</button>}</section>
+    <section className="card state-card"><p className="eyebrow">PAS AI QUEST</p><h1>{status === 'unauthenticated' ? 'You are not signed in' : 'We could not confirm your identity'}</h1><p>{error ?? 'Use the approved authentication method to continue. Development users can choose a synthetic demo identity above.'}</p>{status === 'error' && <div className="state-actions"><button className="button" type="button" onClick={() => void refreshCurrentUser().catch(() => undefined)}>Try again</button>{mode === 'entra' && <button className="button button--quiet" type="button" onClick={() => void logout()}>Sign out</button>}</div>}</section>
   </main>
 }

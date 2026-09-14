@@ -142,7 +142,7 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
     {
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/challenges/eligible")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await Send(HttpMethod.Get, "/api/submissions/review-queue", claimant, QuestRoles.Participant)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await Send(HttpMethod.Get, "/api/challenges/eligible", manager, QuestRoles.Manager)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Send(HttpMethod.Get, "/api/challenges/eligible", manager, QuestRoles.Manager)).StatusCode);
     }
 
     [Fact]
@@ -265,6 +265,11 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
 
         string contentPath = attachment.GetProperty("contentUrl").GetString()!;
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(contentPath)).StatusCode);
+        using (var unprovisioned = new HttpRequestMessage(HttpMethod.Get, contentPath))
+        {
+            unprovisioned.Headers.Add("X-Contract-Authenticated", "true");
+            Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(unprovisioned)).StatusCode);
+        }
         Assert.Equal(HttpStatusCode.OK, (await Send(HttpMethod.Get, contentPath, claimant, QuestRoles.Participant)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await Send(HttpMethod.Get, contentPath, manager, QuestRoles.Manager)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await Send(HttpMethod.Get, contentPath, beneficiary, QuestRoles.Participant)).StatusCode);
@@ -444,8 +449,14 @@ public sealed class WorkflowHttpContractTests : IAsyncLifetime
     {
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
-            if (!Request.Headers.TryGetValue("X-Contract-Participant", out var id) || !Request.Headers.TryGetValue("X-Contract-Role", out var role)) return Task.FromResult(AuthenticateResult.NoResult());
-            var identity = new ClaimsIdentity([new Claim(QuestClaimTypes.ParticipantId, id.ToString()), new Claim(ClaimTypes.Name, "Contract identity"), new Claim(ClaimTypes.Role, role.ToString())], Scheme.Name);
+            if (!Request.Headers.TryGetValue("X-Contract-Participant", out var id) || !Request.Headers.TryGetValue("X-Contract-Role", out var role))
+            {
+                if (!Request.Headers.ContainsKey("X-Contract-Authenticated")) return Task.FromResult(AuthenticateResult.NoResult());
+                return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity([], Scheme.Name)), Scheme.Name)));
+            }
+            var claims = new List<Claim> { new(QuestClaimTypes.ParticipantId, id.ToString()), new(ClaimTypes.Name, "Contract identity"), new(ClaimTypes.Role, role.ToString()) };
+            if (role.ToString() == QuestRoles.Manager) claims.Add(new Claim(ClaimTypes.Role, QuestRoles.Participant));
+            var identity = new ClaimsIdentity(claims, Scheme.Name);
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name)));
         }
     }

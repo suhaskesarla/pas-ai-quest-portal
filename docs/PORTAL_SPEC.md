@@ -295,7 +295,8 @@ The source material establishes that individual XP exists and that group/team su
 
 **The correction to a real gap in v1:** "role derived from group membership or a role column" was stated too loosely to actually be secure. The thing that must enforce "a participant cannot approve submissions" or "cannot award XP" is the **API**, not which sidebar buttons the frontend chooses to render — a participant hitting a manager-only endpoint directly must be rejected server-side regardless of what the UI shows them.
 
-- Use **Entra app roles** (e.g. `Quest.Participant`, `Quest.Manager`) rather than raw group-membership claims. Group claims have a documented overage condition once a user belongs to more than 200 groups, where group claims silently stop being present in the token — the kind of thing that works in testing and breaks for one real person later. App roles are Microsoft's preferred, simpler mechanism for this kind of per-app authorization.
+- **`Quest.Participant`** requires valid Entra authentication, a validated `(tenantId, oid)`, and a verified `ParticipantExternalIdentity` mapping to an active Participant. It does not require an Entra `Quest.Participant` app role. An authenticated user without that active mapping receives no portal capability; login does not auto-provision a Participant.
+- **`Quest.Manager`** requires all Participant conditions plus the exact `Quest.Manager` app role in the validated Entra token. The API grants Participant capability to a valid Manager. An absent, unknown, or similarly named role does not grant Manager access. Do not derive Manager access from raw group-membership claims: group claims can be omitted on overage, whereas the explicit app role is the authorization input.
 - Step 2 of the build sequence (§15) must explicitly test hitting manager-only endpoints with a participant token and confirming rejection — not merely confirming the UI looks different per role.
 - In the real build, this is a hard requirement (unlike the prototype's harmless self-select "View as" toggle, which only exists to demo both experiences from one login and must not carry forward as a real access-control mechanism).
 - Submission review uses a shared manager queue. Any authorized `Quest.Manager` may review an eligible submission, and `SubmissionEvent.actorId` records the manager who performs each action. The current product does not assign submissions to designated managers.
@@ -318,8 +319,9 @@ Earlier drafts said only "full custom web app hosted on Azure," which is too muc
 Frontend        React + TypeScript
 Backend         ASP.NET Core Web API
 Database        Azure SQL, EF Core migrations
-Authentication  Entra ID / MSAL, Entra app roles (§12), API validates
-                tenant + audience + roles server-side
+Authentication  Entra ID / MSAL, mapped Participant identity and
+                Quest.Manager app role (§12); API validates tenant,
+                audience, mapping and Manager role server-side
 Files           Private Azure Blob Storage, Managed Identity,
                 short-lived user-delegation SAS (§13)
 Hosting         Azure Static Web Apps (frontend) + Azure App Service (API)

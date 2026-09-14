@@ -30,6 +30,7 @@ export default defineConfig({
     reuseExistingServer: true,
     env: {
       VITE_DEMO_AUTH_ENABLED: 'true',
+      VITE_APP_ENVIRONMENT: 'Test',
       VITE_API_PROXY_TARGET: 'http://127.0.0.1:8080',
     },
   },

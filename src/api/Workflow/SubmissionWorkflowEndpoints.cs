@@ -53,7 +53,7 @@ public static class SubmissionWorkflowEndpoints
                 return Results.Stream(content.Content, content.MimeType, enableRangeProcessing: false);
             }
             catch (WorkflowException error) { return Problem(error); }
-        }).RequireAuthorization(QuestPolicies.Authenticated);
+        }).RequireAuthorization(QuestPolicies.Participant);
     }
 
     private static readonly JsonSerializerOptions MultipartJson = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
