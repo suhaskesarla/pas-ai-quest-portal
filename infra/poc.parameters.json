@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "australiaeast"
+    },
+    "environmentName": {
+      "value": "poc"
+    },
+    "nameSuffix": {
+      "value": "CHANGE_ME"
+    },
+    "appServiceSku": {
+      "value": "F1"
+    },
+    "useFreeSql": {
+      "value": true
+    },
+    "sqlAdminLogin": {
+      "value": "pasadmin"
+    }
+  }
+}
